@@ -6,9 +6,9 @@ const args = process.argv.slice(2);
 const watch = args.includes('--watch');
 
 const config = JSON.parse(fs.readFileSync('../../elo.config.json', 'utf8'));
-const vaults = config.vaults;
+const obsidianVaults = config.obsidianVaults;
 
-const targetDirs = vaults.map(vault => path.join(vault, '.obsidian/plugins/elocuency'));
+const targetDirs = obsidianVaults.map(vault => path.join(vault, '.obsidian/plugins/elocuency'));
 
 const copyPlugin = {
   name: 'copy-plugin',

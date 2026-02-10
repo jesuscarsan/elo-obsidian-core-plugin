@@ -102,7 +102,7 @@ export class ProcessUnsyncedGoogleContactsCommand {
         const lowerName = contactName.toLowerCase();
 
         // Simple heuristic: Exact match or "Name" contained in "Note Name"
-        // Iterate all markdown files (can be slow in large vaults, but okay for this I guess for now)
+        // Iterate all markdown files (can be slow in large obsidianVaults, but okay for this I guess for now)
         const files = this.app.vault.getMarkdownFiles();
 
         // Prioritize "Personas" folder?
