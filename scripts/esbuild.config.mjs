@@ -1,9 +1,9 @@
-import { buildPlugin } from '../../libs/obsidian-plugin/scripts/esbuild.config.mjs';
+import { buildPlugin } from '../../../libs/obsidian-plugin/scripts/esbuild.config.mjs';
 
 buildPlugin({
   pluginId: 'elocuency',
   entryPoints: ['src/Infrastructure/Obsidian/main.ts'],
-  outfile: 'main.js',
+  outfile: 'dist/main.js',
 }).catch((error) => {
   console.error(error);
   process.exit(1);

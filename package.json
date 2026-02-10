@@ -1,11 +1,11 @@
 {
   "name": "elo-obsidian-core-plugin",
-  "version": "0.1.93",
+  "version": "0.1.98",
   "description": "Obsidian helper extension.",
-  "main": "build/main.js",
+  "main": "dist/main.js",
   "scripts": {
-    "build": "npm run typecheck && node esbuild.config.mjs",
-    "dev": "node ../../libs/obsidian-plugin-utils/scripts/push-to-obsidian-vaults.js && node esbuild.config.mjs --watch",
+    "build": "npm run typecheck && node scripts/esbuild.config.mjs",
+    "dev": "node ../../libs/obsidian-plugin/scripts/bump-version.js && node scripts/esbuild.config.mjs --watch",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "format": "prettier --write .",
