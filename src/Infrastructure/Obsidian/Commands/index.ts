@@ -1,7 +1,6 @@
 export * from './Images/AddImagesCommand/AddImagesCommand';
-export * from './Place/EnrichPlaceCommand/EnrichPlaceCommand';
-export * from './Place/RelocatePlaceNoteCommand/RelocatePlaceNoteCommand';
-export * from './AI/ApplyStreamBriefCommand/ApplyStreamBriefCommand';
+
+
 export * from './ApplyTemplateCommand/ApplyTemplateCommand';
 export * from './ApplyTemplateCommand/ApplyTemplateWithUrlCommand';
 export * from './Images/ApplyTemplateFromImageCommand/ApplyTemplateFromImageCommand';
@@ -12,7 +11,7 @@ export * from './GenerateHeaderMetadataCommand/GenerateHeaderMetadataCommand';
 export * from './Links/GenerateMissingNotesFromLinksCommand/GenerateMissingNotesFromLinksCommand';
 export * from './RelocateNoteByLinkFieldCommand/RelocateNoteByLinkFieldCommand';
 export * from './Music/SearchSpotifyArtistCommand/SearchSpotifyArtistCommand';
-export * from './Place/AddPlaceIdFromUrlCommand/AddPlaceIdFromUrlCommand';
+
 export * from './Links/AnalyzeAndLinkEntitiesCommand/AnalyzeAndLinkEntitiesCommand';
 export * from './Links/GenerateMissingNotesFromListFieldCommand/GenerateMissingNotesFromListFieldCommand';
 export * from './Links/GenerateMissingNotesFromListFieldCommand/GenerateMissingNotesFromListFieldCommand';

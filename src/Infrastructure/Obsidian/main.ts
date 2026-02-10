@@ -7,9 +7,6 @@ import {
 } from './settings';
 import {
   ApplyTemplateCommand,
-  EnrichPlaceCommand,
-  RelocatePlaceNoteCommand,
-  ApplyStreamBriefCommand,
   GenerateMissingNotesFromLinksCommand,
   EnhanceByAiCommand,
 
@@ -21,7 +18,6 @@ import {
   CreateNoteFromImagesCommand,
   ApplyTemplateFromImageCommand,
   GenerateHeaderMetadataCommand,
-  AddPlaceIdFromUrlCommand,
   GenerateMissingNotesFromListFieldCommand,
   InsertLinkToSelectedPhotoCommand,
   OpenLinkedPhotoCommand,
@@ -41,7 +37,6 @@ import {
 import { CommandEnum } from "@elo/core";
 import { GoogleGeminiAdapter } from "@elo/core";
 
-import { GoogleMapsAdapter } from '../Adapters/GoogleMapsAdapter/GoogleMapsAdapter';
 import { GoogleImageSearchAdapter } from '../Adapters/GoogleImageSearchAdapter/GoogleImageSearchAdapter';
 import {
   SettingsView,
@@ -58,9 +53,6 @@ import {
 import {
   InputModal
 } from '@/Infrastructure/Obsidian/Views/Modals/InputModal';
-import {
-  registerGoogleMapsRenderer
-} from '@/Infrastructure/Obsidian/Views/Renderers/GoogleMapsRenderer';
 import {
   registerImageGalleryRenderer
 } from '@/Infrastructure/Obsidian/Views/Renderers/ImageGalleryRenderer';
@@ -130,14 +122,9 @@ export default class ObsidianExtension extends Plugin {
     await this.loadSettings();
 
     this.llm = new GoogleGeminiAdapter(this.settings.geminiApiKey ?? '');
-    const geocoder = new GoogleMapsAdapter(
-      this.settings.googleGeocodingAPIKey ?? '',
-      this.app
-    );
     const geminiImages = new GoogleGeminiImagesAdapter(this.settings.geminiApiKey ?? '');
 
-    const imageSearch = new GoogleImageSearchAdapter(
-      this.settings.googleCustomSearchApiKey ?? '',
+    const imageSearch = new GoogleImageSearchAdapter(      this.settings.googleCustomSearchApiKey ?? '',
       this.settings.googleCustomSearchEngineId ?? ''
     );
     const imageEnricher = new ImageEnricherService(imageSearch);
@@ -204,17 +191,7 @@ export default class ObsidianExtension extends Plugin {
           await command.execute(file);
         },
       },
-      // {
-      //   id: CommandEnum.ApplyStreamBrief,
-      //   name: 'Nota: Añade resumen',
-      //   callback: async (file?: TFile) => {
-      //     const applyStreamBriefCommand = new ApplyStreamBriefCommand(
-      //       this.llm,
-      //       this.app,
-      //     );
-      //     await applyStreamBriefCommand.execute(file);
-      //   },
-      // },
+
       {
         id: CommandEnum.EnhanceByAi,
         name: 'IA: Enriquece con IA',
@@ -299,28 +276,6 @@ export default class ObsidianExtension extends Plugin {
         }
       },
 
-
-      {
-        id: CommandEnum.EnrichPlace,
-        name: 'Lugares: Enriquece Nota',
-        callback: async (file?: TFile) => {
-          await new EnrichPlaceCommand(geocoder, this.llm, this.app).execute(file);
-        },
-      },
-      {
-        id: CommandEnum.RelocatePlaceNote,
-        name: 'Lugares: Reubica Nota',
-        callback: async (file?: TFile) => {
-          await new RelocatePlaceNoteCommand(this.app).execute(file);
-        },
-      },
-      {
-        id: CommandEnum.AddPlaceIdFromUrl,
-        name: 'Lugares: Añadir Place Id desde URL',
-        callback: async (file?: TFile) => {
-          await new AddPlaceIdFromUrlCommand(geocoder, this.llm, this.app).execute(file);
-        },
-      },
 
       {
         id: CommandEnum.SearchSpotifyTrack,
@@ -492,7 +447,6 @@ export default class ObsidianExtension extends Plugin {
     this.addSettingTab(new SettingsView(this.app, this));
     registerImageGalleryRenderer(this);
     registerSpotifyRenderer(this);
-    registerGoogleMapsRenderer(this);
     const headerDataRepo = new ObsidianHeaderDataRepository(this.app);
     const headerDataService = new HeaderDataService(headerDataRepo);
 

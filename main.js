@@ -18150,7 +18150,7 @@ __export(main_exports, {
   default: () => ObsidianExtension
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian58 = require("obsidian");
+var import_obsidian53 = require("obsidian");
 
 // src/Infrastructure/Obsidian/settings.ts
 var DEFAULT_SETTINGS = {
@@ -18417,273 +18417,21 @@ var AddImagesCommand = class {
   }
 };
 
-// src/Infrastructure/Obsidian/Commands/Place/EnrichPlaceCommand/EnrichPlaceCommand.ts
-var import_obsidian6 = require("obsidian");
-
-// src/Application/Services/PlaceEnrichmentService.ts
-var import_core2 = __toESM(require_dist());
+// src/Infrastructure/Obsidian/Commands/ApplyTemplateCommand/ApplyTemplateCommand.ts
+var import_obsidian9 = require("obsidian");
 var import_core3 = __toESM(require_dist());
 
-// src/Infrastructure/Obsidian/Utils/Strings.ts
-function capitalize(str) {
-  if (!str)
-    return str;
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
-function levenshtein(a, b) {
-  const matrix = [];
-  for (let i = 0; i <= b.length; i++) {
-    matrix[i] = [i];
-  }
-  for (let j = 0; j <= a.length; j++) {
-    matrix[0][j] = j;
-  }
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) == a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          // substitution
-          Math.min(
-            matrix[i][j - 1] + 1,
-            // insertion
-            matrix[i - 1][j] + 1
-            // deletion
-          )
-        );
-      }
-    }
-  }
-  return matrix[b.length][a.length];
-}
-function similarity(a, b) {
-  const longer = a.length > b.length ? a : b;
-  const shorter = a.length > b.length ? b : a;
-  const longerLength = longer.length;
-  if (longerLength === 0) {
-    return 1;
-  }
-  return (longerLength - levenshtein(longer, shorter)) / parseFloat(longerLength.toString());
-}
-
-// src/Application/Services/PlaceEnrichmentService.ts
-var PlaceEnrichmentService = class {
-  constructor(geocoder, llm) {
-    this.geocoder = geocoder;
-    this.llm = llm;
-  }
-  async enrichPlace(placeName, promptPlaceDetails, placeId, placeType, excludeTags = false) {
-    let placeDetails = promptPlaceDetails;
-    if (!placeDetails) {
-      const searchName = placeType ? `${placeName.trim()} ${placeType}` : placeName.trim();
-      placeDetails = await this.geocoder.requestPlaceDetails({
-        placeName: searchName,
-        placeId
-      });
-    }
-    if (!placeDetails) {
-      return null;
-    }
-    return this.getEnrichedData(placeName.trim(), placeDetails, placeType, excludeTags);
-  }
-  async getEnrichedData(placeName, rawDetails, placeType, excludeTags = false) {
-    const tagsRules = excludeTags ? "" : `
-        Rules for tags:
-        1. Choose 0 or more tags that is this place from the following list: ${JSON.stringify(import_core3.PlaceTypes)}.
-        2. ONLY use tags from this list.
-        `;
-    const tagsField = excludeTags ? "" : `"tags": ["Lugares/..."]`;
-    const prompt = `
-        I have a place named "${placeName}"${placeType ? ` (Type: ${placeType})` : ""}.
-        Raw Geocoding Data: ${JSON.stringify(rawDetails)}.
-
-        Please refine this data and provide metadata.
-        
-        Rules for refinement:
-        1. Correct any misclassifications. For example, "Inglaterra" might be returned as a province, but it should be a Region, and Country should be "Reino Unido".
-        2. HIERARCHY RULE: If the place being geocoded IS ITSELF a higher level entity, clear all lower level fields.
-           - If it is a Country -> region="", provincia="", municipio=""
-           - If it is a Region -> provincia="", municipio=""
-           - If it is a Province -> municipio=""
-        3. 'pais' must be the sovereign country (e.g. "Reino Unido" for England).
-        4. If the place is a Country, provide its Capital City in the 'capital' field of refinedDetails, and add the 'continent' field of refinedDetails.
-    
-        Rules for metadata:
-        1. Continent (in Spanish).
-        2. isRegionFamous (boolean).
-
-        Rules for summary:
-        1. Write a SINGLE paragraph (approx 50-80 words) summarizing the most relevant aspects of this place (history, significance, tourism).
-        2. In Spanish.
-
-        ${tagsRules}
-
-        Return ONLY a JSON object:
-        {
-            "refinedDetails": {
-                "municipio": "...",
-                "provincia": "...",
-                "region": "...",
-                "pais": "...",
-                "capital": "...", // Only if it is a country
-                "continent": "...", // Only if it is a country
-                "googlePlaceId": "...",
-                "lat": 0.0,
-                "lng": 0.0
-            },
-            "metadata": {
-                "continent": "Name",
-                "isRegionFamous": true/false
-            },
-            "summary": "...",
-            ${tagsField}
-        }
-        `;
-    const response = await this.llm.requestJson({ prompt });
-    if (!response)
-      return null;
-    try {
-      return response;
-    } catch (e) {
-      console.error("Failed to parse LLM response for enriched data", e);
-      return null;
-    }
-  }
-  mergeFrontmatter(current, details, tags) {
-    var _a2;
-    const base = current ? { ...current } : {};
-    const mapping = {
-      "municipio": import_core2.FrontmatterKeys.Municipio,
-      "provincia": import_core2.FrontmatterKeys.Provincia,
-      "region": import_core2.FrontmatterKeys.Region,
-      "pais": import_core2.FrontmatterKeys.Pais,
-      "capital": import_core2.FrontmatterKeys.Capital
-    };
-    for (const [prop, key] of Object.entries(mapping)) {
-      const value = details[prop];
-      if (typeof base[key] === "string") {
-        base[key] = capitalize(base[key]);
-      }
-      const currentValue = base[key];
-      const hasMeaningfulValue2 = currentValue !== void 0 && currentValue !== null && !(typeof currentValue === "string" && currentValue.trim().length === 0);
-      if (!hasMeaningfulValue2) {
-        const cleanValue = typeof value === "string" ? value.trim() : value;
-        if (cleanValue === "" || cleanValue === null || cleanValue === void 0) {
-          delete base[key];
-        } else {
-          let finalValue = typeof cleanValue === "string" ? capitalize(cleanValue) : cleanValue;
-          base[key] = finalValue;
-        }
-      }
-      const finalVal = base[key];
-      if (typeof finalVal === "string" && ((_a2 = import_core2.FrontmatterRegistry[key]) == null ? void 0 : _a2.asLink)) {
-        if (!finalVal.startsWith("[[") || !finalVal.endsWith("]]")) {
-          base[key] = `[[${finalVal}]]`;
-        }
-      }
-    }
-    if (details.googlePlaceId) {
-      base[import_core2.FrontmatterKeys.LugarId] = "google-maps-id:" + details.googlePlaceId;
-    }
-    if (details.lat) {
-      base[import_core2.FrontmatterKeys.Latitud] = details.lat;
-    }
-    if (details.lng) {
-      base[import_core2.FrontmatterKeys.Longitud] = details.lng;
-    }
-    if (tags && tags.length > 0) {
-      const currentTags = base[import_core2.FrontmatterKeys.Tags] || [];
-      const normalizedCurrentTags = Array.isArray(currentTags) ? currentTags : [currentTags];
-      const newTags = /* @__PURE__ */ new Set([...normalizedCurrentTags, ...tags]);
-      base[import_core2.FrontmatterKeys.Tags] = Array.from(newTags);
-    }
-    return base;
-  }
-  async classifyPlace(placeName) {
-    const prompt = `
-        I have a place named "${placeName}".
-        Function: Classify this place into one of the following categories:
-        ${import_core3.PlaceTypes.map((t) => `- "${t}"`).join("\n")}
-
-        Return a JSON object:
-        {
-            "suggestedTag": "Lugares/..." or null if none match,
-            "isConfident": boolean // set to true ONLY if you are very sure (e.g. "McDonalds" is a Restaurant). If ambiguous, false.
-        }
-        `;
-    const response = await this.llm.requestJson({ prompt });
-    return response;
-  }
-};
-
-// src/Infrastructure/Obsidian/Commands/Place/EnrichPlaceCommand/EnrichPlaceCommand.ts
-var import_core5 = __toESM(require_dist());
-var import_core6 = __toESM(require_dist());
-
-// src/Infrastructure/Obsidian/Utils/LocationPathBuilder.ts
-var import_obsidian4 = require("obsidian");
-var import_core4 = __toESM(require_dist());
-var LocationPathBuilder = class {
-  constructor(app) {
-    this.app = app;
-  }
-  buildPath(placeName, details, metadata) {
-    var _a2, _b, _c, _d;
-    const municipio = (_a2 = details.municipio) == null ? void 0 : _a2.trim();
-    const provincia = (_b = details.provincia) == null ? void 0 : _b.trim();
-    const region = (_c = details.region) == null ? void 0 : _c.trim();
-    const pais = (_d = details.pais) == null ? void 0 : _d.trim();
-    const placeNameTrimmed = placeName.trim();
-    const { continent, isRegionFamous } = metadata;
-    const parts = ["Lugares", continent, pais];
-    if (region)
-      parts.push(region);
-    if (provincia)
-      parts.push(provincia);
-    if (municipio) {
-      let municipioFolder = municipio;
-      const isCitySameAsProvince = provincia && municipio.localeCompare(provincia, void 0, { sensitivity: "base" }) === 0;
-      if (isCitySameAsProvince && provincia) {
-        municipioFolder = `${provincia} (Ciudad)`;
-      }
-      parts.push(municipioFolder);
-    }
-    let fileName = `${placeNameTrimmed}.md`;
-    if (municipio) {
-      const isSameName = placeNameTrimmed.localeCompare(municipio, void 0, { sensitivity: "base" }) === 0;
-      if (isSameName) {
-        let cleanName = municipio;
-        if (provincia && municipio.localeCompare(provincia, void 0, { sensitivity: "base" }) === 0) {
-          cleanName = `${provincia} (Ciudad)`;
-        }
-        fileName = `${cleanName}.md`;
-      }
-    }
-    const cleanParts = parts.filter((p) => !!p && p.length > 0);
-    const lastFolder = cleanParts.length > 0 ? cleanParts[cleanParts.length - 1] : "";
-    const targetFolderName = fileName.replace(/\.md$/, "");
-    if (lastFolder !== targetFolderName) {
-      cleanParts.push(targetFolderName);
-    }
-    return (0, import_obsidian4.normalizePath)([...cleanParts, fileName].join("/"));
-  }
-  folderExists(path5) {
-    const normalized = (0, import_obsidian4.normalizePath)(path5);
-    const file = this.app.vault.getAbstractFileByPath(normalized);
-    return !!file;
-  }
-};
+// src/Infrastructure/Obsidian/Utils/TemplateConfig.ts
+var import_obsidian5 = require("obsidian");
 
 // src/Infrastructure/Obsidian/Utils/Vault.ts
-var import_obsidian5 = require("obsidian");
+var import_obsidian4 = require("obsidian");
 async function ensureFolderExists(app, filePath) {
   const folderPath = filePath.split("/").slice(0, -1).join("/");
   if (!folderPath) {
     return;
   }
-  const normalized = (0, import_obsidian5.normalizePath)(folderPath);
+  const normalized = (0, import_obsidian4.normalizePath)(folderPath);
   const folder = app.vault.getAbstractFileByPath(normalized);
   if (!folder) {
     await createFolderRecursively(app, normalized);
@@ -18755,285 +18503,13 @@ async function moveFile(app, file, targetPath) {
   }
   await ensureFolderExists(app, targetPath);
   const existingFile = app.vault.getAbstractFileByPath(targetPath);
-  if (existingFile && existingFile instanceof import_obsidian5.TFile) {
+  if (existingFile && existingFile instanceof import_obsidian4.TFile) {
     throw new Error(`Target file already exists: ${targetPath}`);
   }
   await app.fileManager.renameFile(file, targetPath);
 }
-async function ensureFolderNotes(app, filePath) {
-  const normalized = (0, import_obsidian5.normalizePath)(filePath);
-  const parts = normalized.split("/");
-  if (parts.length <= 1)
-    return;
-  let currentPath = "";
-  for (let i = 0; i < parts.length - 1; i++) {
-    const part = parts[i];
-    currentPath = currentPath ? `${currentPath}/${part}` : part;
-    const folderNotePath = `${currentPath}/${part}.md`;
-    const exists = await pathExists(app, folderNotePath);
-    if (!exists) {
-      try {
-        await app.vault.create(folderNotePath, "");
-      } catch (e) {
-        console.error(`Failed to create folder note at ${folderNotePath}`, e);
-      }
-    }
-  }
-}
-
-// src/Infrastructure/Obsidian/Commands/Place/EnrichPlaceCommand/EnrichPlaceCommand.ts
-var EnrichPlaceCommand = class {
-  constructor(geocoder, llm, app) {
-    this.geocoder = geocoder;
-    this.llm = llm;
-    this.app = app;
-    this.enrichmentService = new PlaceEnrichmentService(geocoder, llm);
-  }
-  async execute(file) {
-    console.log("[EnrichPlaceCommand] Start");
-    const view = getActiveMarkdownView(this.app, file);
-    if (!(view == null ? void 0 : view.file)) {
-      showMessage("Abre una nota de markdown para enriquecer el lugar.");
-      console.log("[EnrichPlaceCommand] End (No active view)");
-      return;
-    }
-    await executeInEditMode(view, async () => {
-      var _a2;
-      const file2 = view.file;
-      if (!file2)
-        return;
-      const content = await this.app.vault.read(file2);
-      const split = splitFrontmatter(content);
-      const currentFrontmatter = parseFrontmatter(split.frontmatterText);
-      const existingIdRaw = currentFrontmatter == null ? void 0 : currentFrontmatter[import_core6.FrontmatterKeys.LugarId];
-      let placeId;
-      let searchName = file2.basename;
-      if (typeof existingIdRaw === "string" && existingIdRaw.startsWith("google-maps-id:")) {
-        placeId = existingIdRaw.replace("google-maps-id:", "");
-        showMessage(`ID existente encontrado: ${placeId}. Verificando detalles...`);
-        const details = await this.geocoder.requestPlaceDetails({ placeName: searchName, placeId });
-        if (details == null ? void 0 : details.lugar) {
-          searchName = details.lugar;
-        }
-      } else {
-        const components = [file2.basename];
-        const keysToCheck = [
-          import_core6.FrontmatterKeys.Municipio,
-          import_core6.FrontmatterKeys.Provincia,
-          import_core6.FrontmatterKeys.Region,
-          import_core6.FrontmatterKeys.Pais
-        ];
-        for (const key of keysToCheck) {
-          const val = currentFrontmatter == null ? void 0 : currentFrontmatter[key];
-          if (val && typeof val === "string" && val.trim().length > 0) {
-            const cleanVal = val.replace(/^\[\[|\]\]$/g, "");
-            components.push(cleanVal);
-          }
-        }
-        searchName = components.join(", ");
-        showMessage(`Buscando: "${searchName}"...`);
-      }
-      let selectedTag = null;
-      if (currentFrontmatter && currentFrontmatter[import_core6.FrontmatterKeys.Tags]) {
-        const rawTags = currentFrontmatter[import_core6.FrontmatterKeys.Tags];
-        const tags2 = Array.isArray(rawTags) ? rawTags : [rawTags];
-        const found = tags2.find((t) => import_core5.PlaceTypes.includes(t));
-        if (found) {
-          selectedTag = found;
-          showMessage(`Tipo detectado en frontmatter: ${selectedTag}`);
-        }
-      }
-      if (!selectedTag) {
-        const classification = await this.enrichmentService.classifyPlace(searchName);
-        selectedTag = (_a2 = classification == null ? void 0 : classification.suggestedTag) != null ? _a2 : null;
-        if (!(classification == null ? void 0 : classification.isConfident) || !selectedTag || selectedTag === "Other") {
-          selectedTag = await this.askUserForTag();
-        } else {
-          showMessage(`Tipo detectado por IA: ${selectedTag}`);
-        }
-      }
-      if (!selectedTag) {
-        showMessage("No se seleccion\xF3 tipo de lugar. Abortando operaci\xF3n.");
-        return;
-      }
-      let placeTypeSuffix;
-      if (selectedTag) {
-        const config = import_core5.PlaceTypeRegistry[selectedTag];
-        placeTypeSuffix = config == null ? void 0 : config.geocodingSuffix;
-      }
-      showMessage(`Obteniendo detalles completos y datos extendidos...${placeTypeSuffix ? ` (Tipo: ${placeTypeSuffix})` : ""}`);
-      const existingTags = currentFrontmatter == null ? void 0 : currentFrontmatter[import_core6.FrontmatterKeys.Tags];
-      const hasTags = Array.isArray(existingTags) ? existingTags.length > 0 : !!existingTags;
-      const enriched = await this.enrichmentService.enrichPlace(searchName, void 0, placeId, placeTypeSuffix, hasTags);
-      if (!enriched) {
-        showMessage("No se pudieron obtener datos enriquecidos.");
-        return;
-      }
-      const { refinedDetails, summary, tags } = enriched;
-      const finalTags = tags || [];
-      if (!finalTags.includes(selectedTag)) {
-        finalTags.push(selectedTag);
-      }
-      const updatedFrontmatter = this.enrichmentService.mergeFrontmatter(currentFrontmatter, refinedDetails, finalTags);
-      const frontmatterBlock = formatFrontmatterBlock(updatedFrontmatter);
-      const normalizedBody = split.body.replace(/^[\n\r]+/, "");
-      const segments = [];
-      if (frontmatterBlock)
-        segments.push(frontmatterBlock);
-      if (summary)
-        segments.push(summary);
-      if (normalizedBody)
-        segments.push(normalizedBody);
-      const finalContent = segments.join("\n\n");
-      if (finalContent !== content) {
-        await this.app.vault.modify(file2, finalContent);
-        showMessage("Nota enriquecida correctamente.");
-        showMessage('Sugerencia: Usa "Organizar nota de Lugar" para moverla a su carpeta.');
-      } else {
-        showMessage("No hubo cambios en la nota.");
-      }
-    });
-    console.log("[EnrichPlaceCommand] End");
-  }
-  async askUserForTag() {
-    return new Promise((resolve) => {
-      const modal = new PlaceTypeSuggestModal(this.app, (result) => {
-        resolve(result);
-      });
-      modal.open();
-    });
-  }
-};
-var PlaceTypeSuggestModal = class extends import_obsidian6.SuggestModal {
-  constructor(app, onChoose) {
-    super(app);
-    this.onChoose = onChoose;
-  }
-  getSuggestions(query) {
-    return import_core5.PlaceTypes.filter((t) => t.toLowerCase().includes(query.toLowerCase()));
-  }
-  renderSuggestion(value, el) {
-    el.createEl("div", { text: value });
-  }
-  onChooseSuggestion(item, evt) {
-    this.onChoose(item);
-  }
-};
-
-// src/Infrastructure/Obsidian/Commands/Place/RelocatePlaceNoteCommand/RelocatePlaceNoteCommand.ts
-var import_obsidian7 = require("obsidian");
-var import_core7 = __toESM(require_dist());
-var RelocatePlaceNoteCommand = class {
-  constructor(app) {
-    this.app = app;
-    this.pathBuilder = new LocationPathBuilder(app);
-  }
-  async execute(file) {
-    console.log("[RelocatePlaceNoteCommand] Start");
-    const view = getActiveMarkdownView(this.app, file);
-    if (!(view == null ? void 0 : view.file)) {
-      showMessage("Abre una nota para organizar.");
-      console.log("[RelocatePlaceNoteCommand] End (No active view)");
-      return;
-    }
-    await executeInEditMode(view, async () => {
-      const file2 = view.file;
-      if (!file2)
-        return;
-      const content = await this.app.vault.read(file2);
-      const split = splitFrontmatter(content);
-      const frontmatter = parseFrontmatter(split.frontmatterText);
-      if (!frontmatter) {
-        showMessage("La nota no tiene frontmatter para organizar.");
-        return;
-      }
-      const rawTags = frontmatter[import_core7.FrontmatterKeys.Tags];
-      const tags = Array.isArray(rawTags) ? rawTags : typeof rawTags === "string" ? rawTags.split(",").map((t) => t.trim()) : [];
-      const hasLugaresTag = tags.some((tag) => tag.startsWith("Lugares/"));
-      if (!hasLugaresTag) {
-        showMessage('Este comando solo se aplica a notas que tengan un tag que empiece por "Lugares/".');
-        console.log('[RelocatePlaceNoteCommand] End (No "Lugares/" tag)');
-        return;
-      }
-      const getString = (key) => {
-        const val = frontmatter[key];
-        if (val === void 0 || val === null)
-          return "";
-        const str = typeof val === "string" ? val : String(val);
-        return str.replace(/\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g, "$1").trim();
-      };
-      const details = {
-        municipio: getString(import_core7.FrontmatterKeys.Municipio),
-        provincia: getString(import_core7.FrontmatterKeys.Provincia),
-        region: getString(import_core7.FrontmatterKeys.Region),
-        pais: getString(import_core7.FrontmatterKeys.Pais)
-      };
-      let continent = "";
-      let paisRaw = frontmatter[import_core7.FrontmatterKeys.Pais];
-      if (Array.isArray(paisRaw)) {
-        paisRaw = paisRaw.length > 0 ? paisRaw[0] : "";
-      }
-      const findContinentForCountry = (country) => {
-        const lugaresFolder = this.app.vault.getAbstractFileByPath("Lugares");
-        if (!lugaresFolder || !(lugaresFolder instanceof import_obsidian7.TFolder))
-          return null;
-        for (const potentialContinent of lugaresFolder.children) {
-          if (potentialContinent instanceof import_obsidian7.TFolder) {
-            const countryFolder = this.app.vault.getAbstractFileByPath(`${potentialContinent.path}/${country}`);
-            if (countryFolder && countryFolder instanceof import_obsidian7.TFolder) {
-              return potentialContinent.name;
-            }
-          }
-        }
-        return null;
-      };
-      if (typeof paisRaw === "string") {
-        const countryName = paisRaw.replace(/\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g, "$1").trim();
-        const foundContinent = findContinentForCountry(countryName);
-        if (foundContinent) {
-          continent = foundContinent;
-        } else {
-          const continentMatch = paisRaw.match(/\[\[Lugares\/([^\/]+)\//);
-          if (continentMatch && continentMatch[1]) {
-            continent = continentMatch[1];
-          }
-        }
-      }
-      const mockMetadata = {
-        tags: frontmatter[import_core7.FrontmatterKeys.Tags] || [],
-        continent
-      };
-      showMessage("Calculando ubicaci\xF3n basada en metadatos actuales...");
-      try {
-        const newPath = this.pathBuilder.buildPath(file2.basename, details, mockMetadata);
-        if (newPath !== file2.path) {
-          await moveFile(this.app, file2, newPath);
-          showMessage(`Nota movida a ${newPath}`);
-        } else {
-          showMessage("La nota ya est\xE1 en la ubicaci\xF3n correcta.");
-        }
-        await ensureFolderNotes(this.app, newPath);
-      } catch (err) {
-        console.error(err);
-        showMessage(`Error al organizar la nota: ${err}`);
-      }
-    });
-    console.log("[RelocatePlaceNoteCommand] End");
-  }
-};
-
-// src/Infrastructure/Adapters/YouTubeTranscriptAdapter/YouTubeTranscriptRobustAdapter.ts
-var import_obsidian8 = require("obsidian");
-
-// src/Infrastructure/Obsidian/Commands/AI/ApplyStreamBriefCommand/ApplyStreamBriefCommand.ts
-var import_core8 = __toESM(require_dist());
-
-// src/Infrastructure/Obsidian/Commands/ApplyTemplateCommand/ApplyTemplateCommand.ts
-var import_obsidian13 = require("obsidian");
-var import_core10 = __toESM(require_dist());
 
 // src/Infrastructure/Obsidian/Utils/TemplateConfig.ts
-var import_obsidian9 = require("obsidian");
 function extractConfigFromTemplate(content) {
   const { frontmatterText, body } = splitFrontmatter(content);
   let config = {};
@@ -19106,7 +18582,7 @@ async function getAllTemplateConfigs(app) {
     const folder = app.vault.getAbstractFileByPath(folderPath);
     if (folder && "children" in folder) {
       for (const child of folder.children) {
-        if (child instanceof import_obsidian9.TFile && child.extension === "md") {
+        if (child instanceof import_obsidian5.TFile && child.extension === "md") {
           templateFiles.push(child);
         } else if ("children" in child) {
           collectFiles(child.path);
@@ -19220,8 +18696,8 @@ var PersonasNoteOrganizer = class {
 };
 
 // src/Infrastructure/Obsidian/Views/Modals/GenericFuzzySuggestModal.ts
-var import_obsidian10 = require("obsidian");
-var GenericFuzzySuggestModal = class extends import_obsidian10.FuzzySuggestModal {
+var import_obsidian6 = require("obsidian");
+var GenericFuzzySuggestModal = class extends import_obsidian6.FuzzySuggestModal {
   constructor(app, items, getItemTextCallback, onChooseItemCallback, resolve, placeholder) {
     super(app);
     this.items = items;
@@ -19256,11 +18732,11 @@ var GenericFuzzySuggestModal = class extends import_obsidian10.FuzzySuggestModal
 };
 
 // src/Infrastructure/Adapters/ObsidianNoteManager.ts
-var import_obsidian12 = require("obsidian");
+var import_obsidian8 = require("obsidian");
 
 // src/Infrastructure/Services/MetadataService.ts
-var import_obsidian11 = require("obsidian");
-var import_core9 = __toESM(require_dist());
+var import_obsidian7 = require("obsidian");
+var import_core2 = __toESM(require_dist());
 var MetadataService = class {
   constructor(app) {
     this.app = app;
@@ -19269,7 +18745,7 @@ var MetadataService = class {
     let file = null;
     if (typeof fileOrPath === "string") {
       const abstractFile = this.app.vault.getAbstractFileByPath(fileOrPath);
-      if (abstractFile instanceof import_obsidian11.TFile)
+      if (abstractFile instanceof import_obsidian7.TFile)
         file = abstractFile;
     } else {
       file = fileOrPath;
@@ -19345,7 +18821,7 @@ var MetadataService = class {
     }
     let hasChanges = false;
     const defaultMetadata = {};
-    Object.values(import_core9.HeaderMetadataRegistry).forEach((field) => {
+    Object.values(import_core2.HeaderMetadataRegistry).forEach((field) => {
       defaultMetadata[field.key] = field.defaultValue;
     });
     for (const id of blockIds) {
@@ -19402,14 +18878,14 @@ var ObsidianNoteManager = class {
   }
   async readNote(path5) {
     const file = this.app.vault.getAbstractFileByPath(path5);
-    if (file instanceof import_obsidian12.TFile) {
+    if (file instanceof import_obsidian8.TFile) {
       return await this.app.vault.read(file);
     }
     throw new Error(`File not found: ${path5}`);
   }
   async getNoteMetadata(path5) {
     const file = this.app.vault.getAbstractFileByPath(path5);
-    if (file instanceof import_obsidian12.TFile) {
+    if (file instanceof import_obsidian8.TFile) {
       const metaService = new MetadataService(this.app);
       return await metaService.getFileMetadata(file);
     }
@@ -19417,7 +18893,7 @@ var ObsidianNoteManager = class {
   }
   async renameFile(fileItem, newPath) {
     const file = this.app.vault.getAbstractFileByPath(fileItem.path);
-    if (file instanceof import_obsidian12.TFile) {
+    if (file instanceof import_obsidian8.TFile) {
       await this.app.fileManager.renameFile(file, newPath);
     } else {
       throw new Error(`File not found to rename: ${fileItem.path}`);
@@ -19430,7 +18906,7 @@ var ObsidianNoteManager = class {
     let currentPath = "";
     for (const folder of folders) {
       currentPath = currentPath === "" ? folder : `${currentPath}/${folder}`;
-      const normalized = (0, import_obsidian12.normalizePath)(currentPath);
+      const normalized = (0, import_obsidian8.normalizePath)(currentPath);
       const exists = this.app.vault.getAbstractFileByPath(normalized);
       if (!exists) {
         await this.app.vault.createFolder(normalized);
@@ -19438,11 +18914,11 @@ var ObsidianNoteManager = class {
     }
   }
   normalizePath(path5) {
-    return (0, import_obsidian12.normalizePath)(path5);
+    return (0, import_obsidian8.normalizePath)(path5);
   }
   async getNoteHeadings(path5) {
     const file = this.app.vault.getAbstractFileByPath(path5);
-    if (file instanceof import_obsidian12.TFile) {
+    if (file instanceof import_obsidian8.TFile) {
       const cache = this.app.metadataCache.getFileCache(file);
       return (cache == null ? void 0 : cache.headings) || [];
     }
@@ -19450,7 +18926,7 @@ var ObsidianNoteManager = class {
   }
   async updateBlockMetadata(path5, blockId, metadata) {
     const file = this.app.vault.getAbstractFileByPath(path5);
-    if (file instanceof import_obsidian12.TFile) {
+    if (file instanceof import_obsidian8.TFile) {
       const metaService = new MetadataService(this.app);
       await metaService.updateBlockMetadata(file, blockId, metadata);
     }
@@ -19543,7 +19019,7 @@ var ApplyTemplateCommand = class {
       if (promptUrl) {
         try {
           console.log(`[ApplyTemplateCommand] Fetching content from ${promptUrl}`);
-          const response = await (0, import_obsidian13.requestUrl)(promptUrl);
+          const response = await (0, import_obsidian9.requestUrl)(promptUrl);
           urlContext = response.text;
           console.log(`[ApplyTemplateCommand] Fetched ${urlContext.length} chars from ${promptUrl}`);
         } catch (e) {
@@ -19568,12 +19044,12 @@ var ApplyTemplateCommand = class {
           mergedFrontmatter,
           enrichment.frontmatter
         );
-        if (updatedFrontmatter && Array.isArray(updatedFrontmatter[import_core10.FrontmatterKeys.EloImages]) && updatedFrontmatter[import_core10.FrontmatterKeys.EloImages].length === 0) {
+        if (updatedFrontmatter && Array.isArray(updatedFrontmatter[import_core3.FrontmatterKeys.EloImages]) && updatedFrontmatter[import_core3.FrontmatterKeys.EloImages].length === 0) {
           const images = await this.imageEnricher.searchImages(file.basename, 3);
           if (images.length > 0) {
             updatedFrontmatter = {
               ...updatedFrontmatter,
-              [import_core10.FrontmatterKeys.EloImages]: images
+              [import_core3.FrontmatterKeys.EloImages]: images
             };
           }
         }
@@ -19602,7 +19078,7 @@ var ApplyTemplateCommand = class {
     }
     if (config.path) {
       try {
-        const targetPath = config.path.endsWith(".md") ? (0, import_obsidian13.normalizePath)(config.path) : (0, import_obsidian13.normalizePath)(`${config.path}/${file.name}`);
+        const targetPath = config.path.endsWith(".md") ? (0, import_obsidian9.normalizePath)(config.path) : (0, import_obsidian9.normalizePath)(`${config.path}/${file.name}`);
         await ensureFolderExists(this.obsidian, targetPath);
         const existing = this.obsidian.vault.getAbstractFileByPath(targetPath);
         if (!existing || existing === file) {
@@ -19693,8 +19169,8 @@ NO DEVUELVAS NADA M\xC1S QUE EL JSON. En los campos 'Obras' y 'Pa\xEDses' y todo
 };
 
 // src/Infrastructure/Obsidian/Views/Modals/InputModal.ts
-var import_obsidian14 = require("obsidian");
-var InputModal = class extends import_obsidian14.Modal {
+var import_obsidian10 = require("obsidian");
+var InputModal = class extends import_obsidian10.Modal {
   constructor(app, config, onSubmit) {
     super(app);
     this.config = config;
@@ -19703,7 +19179,7 @@ var InputModal = class extends import_obsidian14.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.createEl("h2", { text: this.config.title });
-    new import_obsidian14.Setting(contentEl).setName(this.config.label).then((setting) => {
+    new import_obsidian10.Setting(contentEl).setName(this.config.label).then((setting) => {
       if (this.config.isTextArea) {
         setting.addTextArea((text) => {
           if (this.config.placeholder)
@@ -19724,7 +19200,7 @@ var InputModal = class extends import_obsidian14.Modal {
         });
       }
     });
-    new import_obsidian14.Setting(contentEl).addButton((btn) => btn.setButtonText(this.config.submitText || "Submit").setCta().onClick(() => {
+    new import_obsidian10.Setting(contentEl).addButton((btn) => btn.setButtonText(this.config.submitText || "Submit").setCta().onClick(() => {
       this.close();
       this.onSubmit(this.result);
     }));
@@ -19777,11 +19253,11 @@ var ApplyTemplateWithUrlCommand = class {
 };
 
 // src/Infrastructure/Obsidian/Commands/Images/ApplyTemplateFromImageCommand/ApplyTemplateFromImageCommand.ts
-var import_obsidian16 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 
 // src/Infrastructure/Obsidian/Views/Modals/ImageSourceModal.ts
-var import_obsidian15 = require("obsidian");
-var ImageSourceModal = class extends import_obsidian15.Modal {
+var import_obsidian11 = require("obsidian");
+var ImageSourceModal = class extends import_obsidian11.Modal {
   constructor(app, onSubmit) {
     super(app);
     this.onSubmit = onSubmit;
@@ -19793,7 +19269,7 @@ var ImageSourceModal = class extends import_obsidian15.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.createEl("h2", { text: "Fuente de im\xE1genes" });
-    new import_obsidian15.Setting(contentEl).setName("Portapapeles").setDesc("Usar imagen copiada recientemente.").addButton(
+    new import_obsidian11.Setting(contentEl).setName("Portapapeles").setDesc("Usar imagen copiada recientemente.").addButton(
       (btn) => btn.setButtonText("Pegar del Portapapeles").setIcon("clipboard-paste").onClick(async () => {
         try {
           const clipboardItems = await navigator.clipboard.read();
@@ -19817,7 +19293,7 @@ var ImageSourceModal = class extends import_obsidian15.Modal {
     );
     contentEl.createEl("hr");
     let pathInputText;
-    const pathSetting = new import_obsidian15.Setting(contentEl).setName("Carpeta").setDesc("Selecciona una carpeta o introduce la ruta absoluta.").addText((text) => {
+    const pathSetting = new import_obsidian11.Setting(contentEl).setName("Carpeta").setDesc("Selecciona una carpeta o introduce la ruta absoluta.").addText((text) => {
       pathInputText = text;
       text.setPlaceholder("/path/to/folder").setValue(this.pathResult).onChange((value) => {
         this.mode = "path";
@@ -19855,7 +19331,7 @@ var ImageSourceModal = class extends import_obsidian15.Modal {
         fileInput.click();
       })
     );
-    new import_obsidian15.Setting(contentEl).addButton((btn) => btn.setButtonText("Procesar").setCta().onClick(() => {
+    new import_obsidian11.Setting(contentEl).addButton((btn) => btn.setButtonText("Procesar").setCta().onClick(() => {
       this.close();
       if (this.mode === "files" && this.filesResult) {
         this.onSubmit({
@@ -20058,7 +19534,7 @@ var ApplyTemplateFromImageCommand = class {
             }
             if (config.path) {
               try {
-                const targetPath = config.path.endsWith(".md") ? (0, import_obsidian16.normalizePath)(config.path) : (0, import_obsidian16.normalizePath)(`${config.path}/${file.name}`);
+                const targetPath = config.path.endsWith(".md") ? (0, import_obsidian12.normalizePath)(config.path) : (0, import_obsidian12.normalizePath)(`${config.path}/${file.name}`);
                 await ensureFolderExists(this.obsidian, targetPath);
                 const existing = this.obsidian.vault.getAbstractFileByPath(targetPath);
                 if (!existing || existing === file) {
@@ -20249,7 +19725,7 @@ ${result.analysis}
 };
 
 // src/Infrastructure/Obsidian/Commands/Links/CreateReciprocityLinksNotesCommand/CreateReciprocityLinksNotesCommand.ts
-var import_core11 = __toESM(require_dist());
+var import_core4 = __toESM(require_dist());
 var CreateReciprocityLinksNotesCommand = class {
   constructor(app) {
     this.app = app;
@@ -20276,7 +19752,7 @@ var CreateReciprocityLinksNotesCommand = class {
     if (!sourceFrontmatter) {
       sourceFrontmatter = {};
     }
-    const registryEntries = Object.values(import_core11.FrontmatterRegistry).filter((entry) => entry.reciprocityField);
+    const registryEntries = Object.values(import_core4.FrontmatterRegistry).filter((entry) => entry.reciprocityField);
     for (const entry of registryEntries) {
       const fieldKey = entry.key;
       const reciprocityKey = entry.reciprocityField;
@@ -20421,7 +19897,7 @@ var CreateReciprocityLinksNotesCommand = class {
     if (oldName === newBasename)
       return;
     await this.app.fileManager.processFrontMatter(sourceFile, (fm) => {
-      const registryEntries = Object.values(import_core11.FrontmatterRegistry).filter((entry) => entry.reciprocityField);
+      const registryEntries = Object.values(import_core4.FrontmatterRegistry).filter((entry) => entry.reciprocityField);
       for (const entry of registryEntries) {
         const key = entry.key;
         if (fm[key]) {
@@ -20465,7 +19941,7 @@ var CreateReciprocityLinksNotesCommand = class {
 };
 
 // src/Infrastructure/Obsidian/Commands/AI/EnhanceByAiCommand/EnhanceByAiCommand.ts
-var import_core12 = __toESM(require_dist());
+var import_core5 = __toESM(require_dist());
 var EnhanceByAiCommand = class {
   constructor(app, settings, llm) {
     this.app = app;
@@ -20486,8 +19962,8 @@ var EnhanceByAiCommand = class {
       const content = editor.getValue();
       const split = splitFrontmatter(content);
       const frontmatter = parseFrontmatter(split.frontmatterText) || {};
-      const customPrompt = frontmatter[import_core12.FrontmatterKeys.EloPrompt];
-      const customCommands = frontmatter[import_core12.FrontmatterKeys.EloCommands];
+      const customPrompt = frontmatter[import_core5.FrontmatterKeys.EloPrompt];
+      const customCommands = frontmatter[import_core5.FrontmatterKeys.EloCommands];
       let promptToUse = "";
       let includeFrontmatter = false;
       const contextConfig = TemplateContext.activeConfig;
@@ -20507,8 +19983,8 @@ var EnhanceByAiCommand = class {
       showMessage("Enhancing note with AI...");
       if (file) {
         const frontmatterForContext = { ...frontmatter };
-        delete frontmatterForContext[import_core12.FrontmatterKeys.EloPrompt];
-        delete frontmatterForContext[import_core12.FrontmatterKeys.EloCommands];
+        delete frontmatterForContext[import_core5.FrontmatterKeys.EloPrompt];
+        delete frontmatterForContext[import_core5.FrontmatterKeys.EloCommands];
         const prompt = this.buildPrompt(file.basename, promptToUse, frontmatterForContext, split.body, includeFrontmatter, customCommands);
         const response = await this.llm.requestEnrichment({ prompt });
         if (response) {
@@ -20560,7 +20036,7 @@ var EnhanceByAiCommand = class {
       return frontmatter;
     const processed = {};
     const keyMap = /* @__PURE__ */ new Map();
-    Object.keys(import_core12.FrontmatterRegistry).forEach((key) => {
+    Object.keys(import_core5.FrontmatterRegistry).forEach((key) => {
       keyMap.set(key.toLowerCase(), key);
     });
     for (const [key, value] of Object.entries(frontmatter)) {
@@ -20569,7 +20045,7 @@ var EnhanceByAiCommand = class {
       if (keyMap.has(lowerKey)) {
         targetKey = keyMap.get(lowerKey);
       }
-      const config = import_core12.FrontmatterRegistry[targetKey];
+      const config = import_core5.FrontmatterRegistry[targetKey];
       let finalValue = value;
       if (config && config.asLink) {
         if (typeof value === "string") {
@@ -20654,7 +20130,48 @@ var GenerateHeaderMetadataCommand = class {
 };
 
 // src/Infrastructure/Obsidian/Commands/Links/GenerateMissingNotesFromLinksCommand/GenerateMissingNotesFromLinksCommand.ts
-var import_obsidian17 = require("obsidian");
+var import_obsidian13 = require("obsidian");
+
+// src/Infrastructure/Obsidian/Utils/Strings.ts
+function levenshtein(a, b) {
+  const matrix = [];
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) == a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          // substitution
+          Math.min(
+            matrix[i][j - 1] + 1,
+            // insertion
+            matrix[i - 1][j] + 1
+            // deletion
+          )
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+function similarity(a, b) {
+  const longer = a.length > b.length ? a : b;
+  const shorter = a.length > b.length ? b : a;
+  const longerLength = longer.length;
+  if (longerLength === 0) {
+    return 1;
+  }
+  return (longerLength - levenshtein(longer, shorter)) / parseFloat(longerLength.toString());
+}
+
+// src/Infrastructure/Obsidian/Commands/Links/GenerateMissingNotesFromLinksCommand/GenerateMissingNotesFromLinksCommand.ts
 var GenerateMissingNotesFromLinksCommand = class {
   constructor(app, settings) {
     this.app = app;
@@ -20665,7 +20182,7 @@ var GenerateMissingNotesFromLinksCommand = class {
     console.log("[GenerateMissingNotesFromLinksCommand] Start");
     const activeFile = file != null ? file : this.app.workspace.getActiveFile();
     if (!activeFile) {
-      new import_obsidian17.Notice("No active file found to generate missing notes for.");
+      new import_obsidian13.Notice("No active file found to generate missing notes for.");
       console.log("[GenerateMissingNotesFromLinksCommand] End (No active file)");
       return;
     }
@@ -20675,7 +20192,7 @@ var GenerateMissingNotesFromLinksCommand = class {
       return sourcePath === activeFile.path;
     });
     if (unresolvedEntries.length === 0) {
-      new import_obsidian17.Notice("No unresolved links found in this note.");
+      new import_obsidian13.Notice("No unresolved links found in this note.");
       console.log("[GenerateMissingNotesFromLinksCommand] End (No unresolved links)");
       return;
     }
@@ -20718,7 +20235,7 @@ var GenerateMissingNotesFromLinksCommand = class {
         const decision = await this.promptUserForDecision(linkName, candidates);
         if (decision === "create") {
           shouldCreate = true;
-        } else if (decision instanceof import_obsidian17.TFile) {
+        } else if (decision instanceof import_obsidian13.TFile) {
           shouldCreate = false;
           chosenFile = decision;
         } else {
@@ -20764,7 +20281,7 @@ var GenerateMissingNotesFromLinksCommand = class {
         this.app,
         options,
         (item) => {
-          if (item instanceof import_obsidian17.TFile)
+          if (item instanceof import_obsidian13.TFile)
             return `Link to: ${item.basename} (${item.path})`;
           return item.label;
         },
@@ -20773,7 +20290,7 @@ var GenerateMissingNotesFromLinksCommand = class {
         (item) => {
           if (item === null)
             resolve(null);
-          else if (item instanceof import_obsidian17.TFile)
+          else if (item instanceof import_obsidian13.TFile)
             resolve(item);
           else
             resolve("create");
@@ -20786,7 +20303,7 @@ var GenerateMissingNotesFromLinksCommand = class {
   async updateLinksToExistingFile(sources, targetFile) {
     for (const source of sources) {
       const file = this.app.vault.getAbstractFileByPath(source.file);
-      if (!(file instanceof import_obsidian17.TFile))
+      if (!(file instanceof import_obsidian13.TFile))
         continue;
       await this.app.fileManager.processFrontMatter(file, () => {
       });
@@ -20834,7 +20351,7 @@ var GenerateMissingNotesFromLinksCommand = class {
     }
     const folder = baseFolder ? baseFolder.replace(/\/+$/, "") + "/" : "";
     const fullPath = `${folder}${sanitized}.md`;
-    return (0, import_obsidian17.normalizePath)(fullPath);
+    return (0, import_obsidian13.normalizePath)(fullPath);
   }
   sanitizeLinkName(linkName) {
     var _a2;
@@ -20852,9 +20369,15 @@ var GenerateMissingNotesFromLinksCommand = class {
 };
 
 // src/Infrastructure/Obsidian/Commands/RelocateNoteByLinkFieldCommand/RelocateNoteByLinkFieldCommand.ts
-var import_obsidian18 = require("obsidian");
-var import_core13 = __toESM(require_dist());
-var import_core14 = __toESM(require_dist());
+var import_obsidian15 = require("obsidian");
+var import_core7 = __toESM(require_dist());
+var import_core8 = __toESM(require_dist());
+
+// src/Infrastructure/Obsidian/Utils/LocationPathBuilder.ts
+var import_obsidian14 = require("obsidian");
+var import_core6 = __toESM(require_dist());
+
+// src/Infrastructure/Obsidian/Commands/RelocateNoteByLinkFieldCommand/RelocateNoteByLinkFieldCommand.ts
 var RelocateNoteByLinkFieldCommand = class {
   constructor(app) {
     this.app = app;
@@ -20878,7 +20401,7 @@ var RelocateNoteByLinkFieldCommand = class {
         showMessage("No frontmatter found in active file");
         return;
       }
-      const registryValues = Object.values(import_core13.FrontmatterRegistry);
+      const registryValues = Object.values(import_core7.FrontmatterRegistry);
       const candidateFields = registryValues.filter((entry) => entry.isRelocateField);
       if (candidateFields.length === 0) {
         showMessage("No field configured for reallocation (isRelocateField=true) in registry");
@@ -20920,7 +20443,7 @@ var RelocateNoteByLinkFieldCommand = class {
         showMessage(`Could not resolve link: ${pathOrName}`);
         return;
       }
-      if (!(targetFile2 instanceof import_obsidian18.TFile)) {
+      if (!(targetFile2 instanceof import_obsidian15.TFile)) {
         showMessage(`Target is not a file: ${pathOrName}`);
         return;
       }
@@ -20932,7 +20455,7 @@ var RelocateNoteByLinkFieldCommand = class {
       const cache = this.app.metadataCache.getFileCache(activeFile);
       let tags = [];
       if (cache) {
-        tags = (0, import_obsidian18.getAllTags)(cache) || [];
+        tags = (0, import_obsidian15.getAllTags)(cache) || [];
       }
       console.log("RelocateNote: Cache found:", !!cache);
       console.log("RelocateNote: getAllTags result:", tags);
@@ -20944,7 +20467,7 @@ var RelocateNoteByLinkFieldCommand = class {
         const match = content.match(/^---\n([\s\S]*?)\n---/);
         if (match) {
           const yamlRaw = match[1];
-          const parsed = (0, import_obsidian18.parseYaml)(yamlRaw);
+          const parsed = (0, import_obsidian15.parseYaml)(yamlRaw);
           if (parsed) {
             const manualTags = parsed["tags"] || parsed["Tags"] || parsed["tag"];
             const manualTagList = Array.isArray(manualTags) ? manualTags : manualTags ? [manualTags] : [];
@@ -20963,7 +20486,7 @@ var RelocateNoteByLinkFieldCommand = class {
         allTags.filter((t) => t !== null && t !== void 0).map((t) => String(t).trim().normalize("NFC").toLowerCase().replace(/^#/, ""))
       );
       let targetFolderSuffix;
-      for (const [tagKey, folderSuffix] of Object.entries(import_core14.TagFolderMappingRegistry)) {
+      for (const [tagKey, folderSuffix] of Object.entries(import_core8.TagFolderMappingRegistry)) {
         if (normalizedTags.has(tagKey.normalize("NFC").toLowerCase())) {
           targetFolderSuffix = folderSuffix;
           break;
@@ -21005,11 +20528,11 @@ var RelocateNoteByLinkFieldCommand = class {
 };
 
 // src/Infrastructure/Obsidian/Commands/Music/SearchSpotifyArtistCommand/SearchSpotifyArtistCommand.ts
-var import_obsidian20 = require("obsidian");
+var import_obsidian17 = require("obsidian");
 
 // src/Infrastructure/Obsidian/Views/Modals/SpotifyArtistSelectionModal.ts
-var import_obsidian19 = require("obsidian");
-var SpotifyArtistSelectionModal = class extends import_obsidian19.SuggestModal {
+var import_obsidian16 = require("obsidian");
+var SpotifyArtistSelectionModal = class extends import_obsidian16.SuggestModal {
   constructor(app, artists, onSelected) {
     super(app);
     this.artists = artists;
@@ -21039,7 +20562,7 @@ var SpotifyArtistSelectionModal = class extends import_obsidian19.SuggestModal {
 };
 
 // src/Infrastructure/Obsidian/Commands/Music/SearchSpotifyArtistCommand/SearchSpotifyArtistCommand.ts
-var import_core15 = __toESM(require_dist());
+var import_core9 = __toESM(require_dist());
 var SearchSpotifyArtistCommand = class {
   constructor(app, spotifyAdapter, onAuthRequired) {
     this.app = app;
@@ -21049,7 +20572,7 @@ var SearchSpotifyArtistCommand = class {
     this.name = "Search Spotify Artist";
   }
   checkCallback(checking) {
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian20.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian17.MarkdownView);
     if (view) {
       if (!checking) {
         this.execute(view);
@@ -21094,10 +20617,10 @@ var SearchSpotifyArtistCommand = class {
   }
   async updateFrontmatter(file, artist) {
     await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-      frontmatter[import_core15.FrontmatterKeys.SpotifyUri] = artist.uri;
-      frontmatter[import_core15.FrontmatterKeys.EstilosMusicales] = artist.genres;
-      frontmatter[import_core15.FrontmatterKeys.EloImages] = artist.images ? artist.images.map((img) => img.url) : [];
-      frontmatter[import_core15.FrontmatterKeys.SpotifyPopularity] = artist.popularity;
+      frontmatter[import_core9.FrontmatterKeys.SpotifyUri] = artist.uri;
+      frontmatter[import_core9.FrontmatterKeys.EstilosMusicales] = artist.genres;
+      frontmatter[import_core9.FrontmatterKeys.EloImages] = artist.images ? artist.images.map((img) => img.url) : [];
+      frontmatter[import_core9.FrontmatterKeys.SpotifyPopularity] = artist.popularity;
     });
     if (file.basename !== artist.name) {
       const parentPath = file.parent ? file.parent.path : "";
@@ -21113,120 +20636,9 @@ var SearchSpotifyArtistCommand = class {
   }
 };
 
-// src/Infrastructure/Obsidian/Utils/GoogleMapsUrlParser.ts
-var GoogleMapsUrlParser = class {
-  static extractPlaceId(url) {
-    const chijRegex = /ChIJ[a-zA-Z0-9_-]{23}/;
-    const chijMatch = url.match(chijRegex);
-    if (chijMatch) {
-      return chijMatch[0];
-    }
-    const hexRegex = /!1s(0x[a-fA-F0-9]+:0x[a-fA-F0-9]+)/;
-    const hexMatch = url.match(hexRegex);
-    if (hexMatch && hexMatch[1]) {
-      return hexMatch[1];
-    }
-    return null;
-  }
-  static extractName(url) {
-    try {
-      const nameRegex = /\/place\/([^/]+)\//;
-      const match = url.match(nameRegex);
-      if (match && match[1]) {
-        const decoded = decodeURIComponent(match[1].replace(/\+/g, " "));
-        return decoded;
-      }
-    } catch (e) {
-      console.error("Error extracting name from URL", e);
-    }
-    return null;
-  }
-};
-
-// src/Infrastructure/Obsidian/Commands/Place/AddPlaceIdFromUrlCommand/AddPlaceIdFromUrlCommand.ts
-var AddPlaceIdFromUrlCommand = class {
-  constructor(geocoder, llm, app) {
-    this.geocoder = geocoder;
-    this.llm = llm;
-    this.app = app;
-    this.enrichmentService = new PlaceEnrichmentService(geocoder, llm);
-  }
-  async execute(file) {
-    console.log("[AddPlaceIdFromUrlCommand] Start");
-    const view = getActiveMarkdownView(this.app, file);
-    if (!(view == null ? void 0 : view.file)) {
-      showMessage("Abre una nota de markdown para a\xF1adir el Place ID.");
-      console.log("[AddPlaceIdFromUrlCommand] End (No active view)");
-      return;
-    }
-    const activeFile = view.file;
-    new InputModal(
-      this.app,
-      {
-        title: "A\xF1adir Place ID desde URL",
-        label: "Google Maps URL",
-        placeholder: "Pega la URL aqu\xED (ej: https://maps.app.goo.gl/...)",
-        submitText: "Buscar ID"
-      },
-      async (url) => {
-        if (!url)
-          return;
-        await this.processUrl(url, activeFile, view);
-      }
-    ).open();
-    console.log("[AddPlaceIdFromUrlCommand] End");
-  }
-  async processUrl(url, file, view) {
-    const placeId = GoogleMapsUrlParser.extractPlaceId(url);
-    const placeName = GoogleMapsUrlParser.extractName(url);
-    if (!placeId && !placeName) {
-      showMessage("No se encontr\xF3 un Place ID o nombre v\xE1lido en la URL.");
-      return;
-    }
-    if (placeId) {
-      showMessage(`ID encontrado: ${placeId}. Obteniendo detalles...`);
-    } else {
-      showMessage(`Lugar encontrado: ${placeName}. Obteniendo detalles...`);
-    }
-    const details = await this.geocoder.requestPlaceDetails({
-      placeName: placeName != null ? placeName : "",
-      placeId: placeId != null ? placeId : void 0
-    });
-    if (!details) {
-      showMessage("No se pudieron obtener detalles del lugar.");
-      return;
-    }
-    if (!details.googlePlaceId) {
-      showMessage("La API no devolvi\xF3 un Place ID confirmado.");
-      return;
-    }
-    await executeInEditMode(view, async () => {
-      var _a2;
-      const content = await this.app.vault.read(file);
-      const split = splitFrontmatter(content);
-      const currentFrontmatter = (_a2 = parseFrontmatter(split.frontmatterText)) != null ? _a2 : {};
-      const updatedFrontmatter = this.enrichmentService.mergeFrontmatter(currentFrontmatter, details);
-      const frontmatterBlock = formatFrontmatterBlock(updatedFrontmatter);
-      const normalizedBody = split.body.replace(/^[\n\r]+/, "");
-      const segments = [];
-      if (frontmatterBlock)
-        segments.push(frontmatterBlock);
-      if (normalizedBody)
-        segments.push(normalizedBody);
-      const finalContent = segments.join("\n\n");
-      if (finalContent !== content) {
-        await this.app.vault.modify(file, finalContent);
-        showMessage(`Place ID actualizado: ${details.googlePlaceId}`);
-      } else {
-        showMessage("La nota ya estaba actualizada.");
-      }
-    });
-  }
-};
-
 // src/Infrastructure/Obsidian/Views/Modals/EntitySelectionModal.ts
-var import_obsidian21 = require("obsidian");
-var EntitySelectionModal = class extends import_obsidian21.Modal {
+var import_obsidian18 = require("obsidian");
+var EntitySelectionModal = class extends import_obsidian18.Modal {
   constructor(app, entities, onConfirm) {
     super(app);
     this.entities = entities;
@@ -21237,7 +20649,7 @@ var EntitySelectionModal = class extends import_obsidian21.Modal {
     const { contentEl } = this;
     contentEl.createEl("h2", { text: "Review Entities to Link" });
     this.entities.forEach((entity) => {
-      new import_obsidian21.Setting(contentEl).setName(`${entity.name} (${entity.type})`).setDesc(`Relevance: ${entity.relevance}`).addToggle((toggle) => toggle.setValue(entity.relevance === "High").onChange((value) => {
+      new import_obsidian18.Setting(contentEl).setName(`${entity.name} (${entity.type})`).setDesc(`Relevance: ${entity.relevance}`).addToggle((toggle) => toggle.setValue(entity.relevance === "High").onChange((value) => {
         if (value) {
           this.selectedEntities.add(entity);
         } else {
@@ -21245,7 +20657,7 @@ var EntitySelectionModal = class extends import_obsidian21.Modal {
         }
       }));
     });
-    new import_obsidian21.Setting(contentEl).addButton((btn) => btn.setButtonText("Process Selected").setCta().onClick(() => {
+    new import_obsidian18.Setting(contentEl).addButton((btn) => btn.setButtonText("Process Selected").setCta().onClick(() => {
       this.close();
       this.onConfirm(Array.from(this.selectedEntities));
     })).addButton((btn) => btn.setButtonText("Cancel").onClick(() => {
@@ -21389,7 +20801,7 @@ CRITICAL: Return ONLY the JSON Array. No markdown formatting around it.
 };
 
 // src/Infrastructure/Obsidian/Commands/Links/GenerateMissingNotesFromListFieldCommand/GenerateMissingNotesFromListFieldCommand.ts
-var import_obsidian22 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 var GenerateMissingNotesFromListFieldCommand = class {
   constructor(app, settings, llm, imageEnricher) {
     this.app = app;
@@ -21485,7 +20897,7 @@ var GenerateMissingNotesFromListFieldCommand = class {
     for (const noteName of missingNotes) {
       try {
         const parentPath = activeFile.parent ? activeFile.parent.path : "";
-        const newFilePath = (0, import_obsidian22.normalizePath)(`${parentPath}/${noteName}.md`);
+        const newFilePath = (0, import_obsidian19.normalizePath)(`${parentPath}/${noteName}.md`);
         if (await pathExists(this.app, newFilePath)) {
           continue;
         }
@@ -21494,7 +20906,7 @@ var GenerateMissingNotesFromListFieldCommand = class {
         console.log(`Created and processed ${newFilePath}`);
       } catch (e) {
         console.error(`Error creating note ${noteName}:`, e);
-        new import_obsidian22.Notice(`Failed to create ${noteName}`);
+        new import_obsidian19.Notice(`Failed to create ${noteName}`);
       }
     }
     showMessage(`Finished generating notes.`);
@@ -21518,7 +20930,7 @@ var GenerateMissingNotesFromListFieldCommand = class {
 
 // src/Infrastructure/Obsidian/Commands/Photos/InsertLinkToSelectedPhotoCommand.ts
 var import_child_process = require("child_process");
-var import_core16 = __toESM(require_dist());
+var import_core10 = __toESM(require_dist());
 var InsertLinkToSelectedPhotoCommand = class {
   constructor(app) {
     this.app = app;
@@ -21571,7 +20983,7 @@ var InsertLinkToSelectedPhotoCommand = class {
         const content = await this.app.vault.read(f);
         const split = splitFrontmatter(content);
         const currentFrontmatter = parseFrontmatter(split.frontmatterText) || {};
-        const currentPhotos = currentFrontmatter[import_core16.FrontmatterKeys.EloImages];
+        const currentPhotos = currentFrontmatter[import_core10.FrontmatterKeys.EloImages];
         let newPhotos = [];
         if (Array.isArray(currentPhotos)) {
           newPhotos = [...currentPhotos];
@@ -21579,7 +20991,7 @@ var InsertLinkToSelectedPhotoCommand = class {
           newPhotos = [currentPhotos];
         }
         newPhotos.push(link);
-        currentFrontmatter[import_core16.FrontmatterKeys.EloImages] = newPhotos;
+        currentFrontmatter[import_core10.FrontmatterKeys.EloImages] = newPhotos;
         const frontmatterBlock = formatFrontmatterBlock(currentFrontmatter);
         const normalizedBody = split.body.replace(/^[\n\r]+/, "");
         const finalContent = frontmatterBlock + "\n\n" + normalizedBody;
@@ -21591,7 +21003,7 @@ var InsertLinkToSelectedPhotoCommand = class {
 };
 
 // src/Infrastructure/Obsidian/Commands/Photos/OpenLinkedPhotoCommand.ts
-var import_obsidian23 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 var OpenLinkedPhotoCommand = class {
   constructor(app) {
     this.app = app;
@@ -21658,7 +21070,7 @@ var OpenLinkedPhotoCommand = class {
         return;
       }
     }
-    if (import_obsidian23.Platform.isMobile) {
+    if (import_obsidian20.Platform.isMobile) {
       this.handleMobile(name);
     } else {
       this.handleDesktop(id, name);
@@ -21720,7 +21132,7 @@ var OpenLinkedPhotoCommand = class {
 };
 
 // src/Infrastructure/Obsidian/Commands/AI/EnrichWithPromptUrlCommand/EnrichWithPromptUrlCommand.ts
-var import_core17 = __toESM(require_dist());
+var import_core11 = __toESM(require_dist());
 var EnrichWithPromptUrlCommand = class {
   constructor(llm, imageEnricher, obsidian, settings) {
     this.llm = llm;
@@ -21758,7 +21170,7 @@ var EnrichWithPromptUrlCommand = class {
       const content = await this.obsidian.vault.read(file);
       const split = splitFrontmatter(content);
       const frontmatter = parseFrontmatter(split.frontmatterText) || {};
-      frontmatter[import_core17.FrontmatterKeys.EloPromptUrl] = url;
+      frontmatter[import_core11.FrontmatterKeys.EloPromptUrl] = url;
       const frontmatterBlock = formatFrontmatterBlock(frontmatter);
       const body = split.body ? split.body.trim() : "";
       const newContent = frontmatterBlock + (body ? "\n\n" + body : "");
@@ -21778,39 +21190,39 @@ var EnrichWithPromptUrlCommand = class {
 };
 
 // src/Infrastructure/Obsidian/Commands/Contacts/SyncContactsCommand.ts
-var import_obsidian24 = require("obsidian");
-var import_core18 = __toESM(require_dist());
-var import_core19 = __toESM(require_dist());
+var import_obsidian21 = require("obsidian");
+var import_core12 = __toESM(require_dist());
+var import_core13 = __toESM(require_dist());
 var SyncCurrentContactCommand = class {
   constructor(app, bridge) {
     this.app = app;
     this.bridge = bridge;
-    this.id = import_core18.CommandEnum.SyncContacts;
+    this.id = import_core12.CommandEnum.SyncContacts;
     this.name = "Contactos: Sincronizar Nota Activa con Mac/iPhone";
   }
   async execute(file) {
     const targetFile = file || this.app.workspace.getActiveFile();
-    if (!targetFile || !(targetFile instanceof import_obsidian24.TFile)) {
-      new import_obsidian24.Notice("No hay ninguna nota activa.");
+    if (!targetFile || !(targetFile instanceof import_obsidian21.TFile)) {
+      new import_obsidian21.Notice("No hay ninguna nota activa.");
       return;
     }
     if (!this.isPersona(targetFile)) {
-      new import_obsidian24.Notice("La nota activa no es una Persona (falta tag #Personas).");
+      new import_obsidian21.Notice("La nota activa no es una Persona (falta tag #Personas).");
       return;
     }
     const view = getActiveMarkdownView(this.app, targetFile);
     if (!view) {
-      new import_obsidian24.Notice("No se pudo obtener la vista de la nota para activar el modo edici\xF3n.");
+      new import_obsidian21.Notice("No se pudo obtener la vista de la nota para activar el modo edici\xF3n.");
       return;
     }
     await executeInEditMode(view, async () => {
-      new import_obsidian24.Notice(`Sincronizando contacto: ${targetFile.basename}...`);
+      new import_obsidian21.Notice(`Sincronizando contacto: ${targetFile.basename}...`);
       try {
         await this.syncFile(targetFile);
-        new import_obsidian24.Notice(`Sincronizaci\xF3n completada para ${targetFile.basename}`);
+        new import_obsidian21.Notice(`Sincronizaci\xF3n completada para ${targetFile.basename}`);
       } catch (e) {
         console.error(`Error syncing ${targetFile.basename}:`, e);
-        new import_obsidian24.Notice(`Error al sincronizar: ${e.message}`);
+        new import_obsidian21.Notice(`Error al sincronizar: ${e.message}`);
       }
     });
   }
@@ -21818,7 +21230,7 @@ var SyncCurrentContactCommand = class {
     const cache = this.app.metadataCache.getFileCache(file);
     if (!cache)
       return false;
-    const tags = (0, import_obsidian24.getAllTags)(cache);
+    const tags = (0, import_obsidian21.getAllTags)(cache);
     if (tags && tags.some((t) => t.startsWith("#Personas/") || t === "#Personas")) {
       return true;
     }
@@ -21833,10 +21245,10 @@ var SyncCurrentContactCommand = class {
     const finalName = (frontmatter == null ? void 0 : frontmatter["name"]) || file.basename;
     const contactData = {
       name: finalName,
-      phone: frontmatter[import_core19.FrontmatterKeys.Telefono],
-      email: frontmatter[import_core19.FrontmatterKeys.Email],
-      birthday: frontmatter[import_core19.FrontmatterKeys.Cumpleanos],
-      id: frontmatter[import_core19.FrontmatterKeys.EloAppleContactId]
+      phone: frontmatter[import_core13.FrontmatterKeys.Telefono],
+      email: frontmatter[import_core13.FrontmatterKeys.Email],
+      birthday: frontmatter[import_core13.FrontmatterKeys.Cumpleanos],
+      id: frontmatter[import_core13.FrontmatterKeys.EloAppleContactId]
       // Use existing ID if available
       // Add tags as notes?
     };
@@ -21852,10 +21264,10 @@ var SyncCurrentContactCommand = class {
           console.log(`[SyncCurrentContact] Selected candidate:`, selectedCandidate);
           if (selectedCandidate) {
             contactData.id = selectedCandidate.id;
-            new import_obsidian24.Notice(`Enlazado a: ${selectedCandidate.name}`);
+            new import_obsidian21.Notice(`Enlazado a: ${selectedCandidate.name}`);
           } else {
             console.log(`[SyncCurrentContact] User cancelled or chose create new.`);
-            new import_obsidian24.Notice(`Creando nuevo contacto: ${finalName}`);
+            new import_obsidian21.Notice(`Creando nuevo contacto: ${finalName}`);
           }
         }
       } catch (err) {
@@ -21869,16 +21281,16 @@ var SyncCurrentContactCommand = class {
       await this.app.fileManager.processFrontMatter(file, (fm) => {
         if (syncedContact) {
           if (syncedContact.id) {
-            fm[import_core19.FrontmatterKeys.EloAppleContactId] = syncedContact.id;
+            fm[import_core13.FrontmatterKeys.EloAppleContactId] = syncedContact.id;
           }
-          if (!fm[import_core19.FrontmatterKeys.Telefono] && syncedContact.phones && syncedContact.phones.length > 0) {
-            fm[import_core19.FrontmatterKeys.Telefono] = syncedContact.phones[0];
+          if (!fm[import_core13.FrontmatterKeys.Telefono] && syncedContact.phones && syncedContact.phones.length > 0) {
+            fm[import_core13.FrontmatterKeys.Telefono] = syncedContact.phones[0];
           }
-          if (!fm[import_core19.FrontmatterKeys.Email] && syncedContact.emails && syncedContact.emails.length > 0) {
-            fm[import_core19.FrontmatterKeys.Email] = syncedContact.emails[0];
+          if (!fm[import_core13.FrontmatterKeys.Email] && syncedContact.emails && syncedContact.emails.length > 0) {
+            fm[import_core13.FrontmatterKeys.Email] = syncedContact.emails[0];
           }
-          if (!fm[import_core19.FrontmatterKeys.Cumpleanos] && syncedContact.birthday) {
-            fm[import_core19.FrontmatterKeys.Cumpleanos] = syncedContact.birthday;
+          if (!fm[import_core13.FrontmatterKeys.Cumpleanos] && syncedContact.birthday) {
+            fm[import_core13.FrontmatterKeys.Cumpleanos] = syncedContact.birthday;
           }
         }
       });
@@ -21896,7 +21308,7 @@ var SyncCurrentContactCommand = class {
     });
   }
 };
-var ContactSelectionModal = class extends import_obsidian24.FuzzySuggestModal {
+var ContactSelectionModal = class extends import_obsidian21.FuzzySuggestModal {
   constructor(app, noteName, query, candidates, onChoose) {
     super(app);
     this.noteName = noteName;
@@ -21931,11 +21343,11 @@ var ContactSelectionModal = class extends import_obsidian24.FuzzySuggestModal {
 };
 
 // src/Infrastructure/Obsidian/Commands/Contacts/SyncGoogleContactsCommand.ts
-var import_obsidian28 = require("obsidian");
+var import_obsidian25 = require("obsidian");
 
 // src/Infrastructure/Obsidian/Views/Modals/GoogleAuthModal.ts
-var import_obsidian25 = require("obsidian");
-var GoogleAuthModal = class extends import_obsidian25.Modal {
+var import_obsidian22 = require("obsidian");
+var GoogleAuthModal = class extends import_obsidian22.Modal {
   constructor(app, adapter, onSuccess) {
     super(app);
     this.adapter = adapter;
@@ -21949,7 +21361,7 @@ var GoogleAuthModal = class extends import_obsidian25.Modal {
     const step1 = contentEl.createDiv({ cls: "step-1" });
     step1.createEl("h3", { text: "Step 1: Authorize" });
     step1.createEl("p", { text: "Click the button below to open the validation page. You will be redirected to Google. Copy the URL or the code from the address bar after the redirect." });
-    new import_obsidian25.Setting(step1).addButton((btn) => btn.setButtonText("Connect Google").setCta().onClick(async () => {
+    new import_obsidian22.Setting(step1).addButton((btn) => btn.setButtonText("Connect Google").setCta().onClick(async () => {
       btn.setDisabled(true);
       btn.setButtonText("Opening Browser...");
       const redirectUri = "https://google.com";
@@ -21970,7 +21382,7 @@ var GoogleAuthModal = class extends import_obsidian25.Modal {
     const step2 = contentEl.createDiv({ cls: "step-2" });
     step2.createEl("h3", { text: "Step 2: Enter Code" });
     let code = "";
-    new import_obsidian25.Setting(step2).setName("Authorization Code").setDesc("Paste the code or the full redirect URL here.").addText((text) => text.setPlaceholder("Paste code or URL...").onChange((value) => {
+    new import_obsidian22.Setting(step2).setName("Authorization Code").setDesc("Paste the code or the full redirect URL here.").addText((text) => text.setPlaceholder("Paste code or URL...").onChange((value) => {
       code = value.trim();
       try {
         if (code.includes("code=")) {
@@ -21989,7 +21401,7 @@ var GoogleAuthModal = class extends import_obsidian25.Modal {
       } catch (e) {
       }
     }));
-    new import_obsidian25.Setting(contentEl).addButton((btn) => btn.setButtonText("Verify & Connect").setCta().onClick(async () => {
+    new import_obsidian22.Setting(contentEl).addButton((btn) => btn.setButtonText("Verify & Connect").setCta().onClick(async () => {
       if (!code) {
         showMessage("Please enter the code.");
         return;
@@ -22023,7 +21435,7 @@ var GoogleAuthModal = class extends import_obsidian25.Modal {
 };
 
 // src/Infrastructure/Obsidian/Adapters/GoogleContactAdapter.ts
-var import_obsidian26 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 var GoogleContactAdapter = class {
   constructor(settings, saveSettings) {
     // --- Groups / Labels Support ---
@@ -22047,7 +21459,7 @@ var GoogleContactAdapter = class {
       throw new Error("Missing Client ID or Secret in settings.");
     }
     try {
-      const response = await (0, import_obsidian26.requestUrl)({
+      const response = await (0, import_obsidian23.requestUrl)({
         url: "https://oauth2.googleapis.com/token",
         method: "POST",
         throw: false,
@@ -22095,7 +21507,7 @@ var GoogleContactAdapter = class {
     }
     console.log("[GoogleAdapter] Refreshing Access Token...");
     try {
-      const response = await (0, import_obsidian26.requestUrl)({
+      const response = await (0, import_obsidian23.requestUrl)({
         url: "https://oauth2.googleapis.com/token",
         method: "POST",
         throw: false,
@@ -22123,7 +21535,7 @@ var GoogleContactAdapter = class {
       return this.settings.googleAccessToken;
     } catch (error) {
       console.error("[GoogleAdapter] Auth Error", error);
-      new import_obsidian26.Notice("Error al autenticar con Google. Revisa la consola.");
+      new import_obsidian23.Notice("Error al autenticar con Google. Revisa la consola.");
       throw error;
     }
   }
@@ -22140,7 +21552,7 @@ var GoogleContactAdapter = class {
     if (body) {
       params.body = JSON.stringify(body);
     }
-    const response = await (0, import_obsidian26.requestUrl)(params);
+    const response = await (0, import_obsidian23.requestUrl)(params);
     if (response.status >= 400) {
       throw new Error(`Google API Error ${response.status}: ${response.text}`);
     }
@@ -22411,7 +21823,7 @@ var GoogleContactAdapter = class {
 };
 
 // src/Infrastructure/Obsidian/Services/GoogleContactSyncService.ts
-var import_obsidian27 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 var GoogleContactSyncService = class {
   constructor(app, adapter, transformer) {
     this.app = app;
@@ -22427,7 +21839,7 @@ var GoogleContactSyncService = class {
     const frontmatter = cache == null ? void 0 : cache.frontmatter;
     if (!frontmatter)
       return;
-    const tags = (0, import_obsidian27.getAllTags)(cache) || [];
+    const tags = (0, import_obsidian24.getAllTags)(cache) || [];
     const contactData = this.transformer.toContact(file, frontmatter, tags);
     let selectedCandidate = null;
     if (!contactData.id) {
@@ -22439,12 +21851,12 @@ var GoogleContactSyncService = class {
           selectedCandidate = await this.promptUserForCandidate(file.basename, cleanName, candidates);
           if (selectedCandidate) {
             contactData.id = selectedCandidate.id;
-            new import_obsidian27.Notice(`Enlazado a Google Contact: ${selectedCandidate.name}`);
+            new import_obsidian24.Notice(`Enlazado a Google Contact: ${selectedCandidate.name}`);
           } else {
-            new import_obsidian27.Notice(`Creando nuevo contacto en Google: ${cleanName}`);
+            new import_obsidian24.Notice(`Creando nuevo contacto en Google: ${cleanName}`);
           }
         } else {
-          new import_obsidian27.Notice(`No se encontraron candidatos. Creando nuevo...`);
+          new import_obsidian24.Notice(`No se encontraron candidatos. Creando nuevo...`);
         }
       } catch (err) {
         console.error("Error searching candidate:", err);
@@ -22475,7 +21887,7 @@ var GoogleContactSyncService = class {
       }
     };
     await this.adapter.upsertContact(updatedContact);
-    new import_obsidian27.Notice(`Enlazado: ${contact.name} <-> ${file.basename}`);
+    new import_obsidian24.Notice(`Enlazado: ${contact.name} <-> ${file.basename}`);
   }
   /**
    * Creates a new note from a Contact and links them.
@@ -22485,7 +21897,7 @@ var GoogleContactSyncService = class {
     const templatePath = "!!metadata/templates/Personas/Persona conocidos mios.md";
     const templateFile = this.app.vault.getAbstractFileByPath(templatePath);
     let content = "";
-    if (templateFile instanceof import_obsidian27.TFile) {
+    if (templateFile instanceof import_obsidian24.TFile) {
       content = await this.app.vault.read(templateFile);
     } else {
       console.warn(`Template not found: ${templatePath}`);
@@ -22512,7 +21924,7 @@ var GoogleContactSyncService = class {
     });
   }
 };
-var ContactSelectionModal2 = class extends import_obsidian27.FuzzySuggestModal {
+var ContactSelectionModal2 = class extends import_obsidian24.FuzzySuggestModal {
   constructor(app, noteName, query, candidates, onChoose) {
     super(app);
     this.noteName = noteName;
@@ -22547,7 +21959,7 @@ var ContactSelectionModal2 = class extends import_obsidian27.FuzzySuggestModal {
 };
 
 // src/Infrastructure/Obsidian/Transformers/GoogleContactTransformer.ts
-var import_core20 = __toESM(require_dist());
+var import_core14 = __toESM(require_dist());
 var _GoogleContactTransformer = class _GoogleContactTransformer {
   /**
    * Updates the frontmatter object in-place with data from the Contact.
@@ -22560,21 +21972,21 @@ var _GoogleContactTransformer = class _GoogleContactTransformer {
       frontmatter[_GoogleContactTransformer.GOOGLE_ID_KEY] = contact.id;
     }
     frontmatter[_GoogleContactTransformer.GOOGLE_SYNC_DATE_KEY] = (/* @__PURE__ */ new Date()).toISOString();
-    this.updateFieldIfMissing(frontmatter, import_core20.FrontmatterKeys.Telefono, contact.phone);
-    this.updateFieldIfMissing(frontmatter, import_core20.FrontmatterKeys.Email, contact.email);
-    this.updateFieldIfMissing(frontmatter, import_core20.FrontmatterKeys.Cumpleanos, contact.birthday);
+    this.updateFieldIfMissing(frontmatter, import_core14.FrontmatterKeys.Telefono, contact.phone);
+    this.updateFieldIfMissing(frontmatter, import_core14.FrontmatterKeys.Email, contact.email);
+    this.updateFieldIfMissing(frontmatter, import_core14.FrontmatterKeys.Cumpleanos, contact.birthday);
     this.updateFieldIfMissing(frontmatter, "aliases", contact.nickname ? [contact.nickname] : void 0);
-    this.updateFieldIfMissing(frontmatter, import_core20.FrontmatterKeys.Puesto, contact.jobTitle);
-    this.updateFieldIfMissing(frontmatter, import_core20.FrontmatterKeys.Empresa, contact.organization);
-    this.updateFieldIfMissing(frontmatter, import_core20.FrontmatterKeys.Direcciones, contact.addresses);
-    this.updateFieldIfMissing(frontmatter, import_core20.FrontmatterKeys.Urls, contact.urls);
-    this.updateFieldIfMissing(frontmatter, import_core20.FrontmatterKeys.Eventos, contact.events);
-    this.updateFieldIfMissing(frontmatter, import_core20.FrontmatterKeys.Relaciones, contact.relations);
-    this.updateFieldIfMissing(frontmatter, import_core20.FrontmatterKeys.Genero, contact.gender);
-    this.updateFieldIfMissing(frontmatter, import_core20.FrontmatterKeys.Ocupaciones, contact.occupations);
-    this.updateFieldIfMissing(frontmatter, import_core20.FrontmatterKeys.Intereses, contact.interests);
-    this.updateFieldIfMissing(frontmatter, import_core20.FrontmatterKeys.Habilidades, contact.skills);
-    this.updateFieldIfMissing(frontmatter, import_core20.FrontmatterKeys.Residencias, contact.residences);
+    this.updateFieldIfMissing(frontmatter, import_core14.FrontmatterKeys.Puesto, contact.jobTitle);
+    this.updateFieldIfMissing(frontmatter, import_core14.FrontmatterKeys.Empresa, contact.organization);
+    this.updateFieldIfMissing(frontmatter, import_core14.FrontmatterKeys.Direcciones, contact.addresses);
+    this.updateFieldIfMissing(frontmatter, import_core14.FrontmatterKeys.Urls, contact.urls);
+    this.updateFieldIfMissing(frontmatter, import_core14.FrontmatterKeys.Eventos, contact.events);
+    this.updateFieldIfMissing(frontmatter, import_core14.FrontmatterKeys.Relaciones, contact.relations);
+    this.updateFieldIfMissing(frontmatter, import_core14.FrontmatterKeys.Genero, contact.gender);
+    this.updateFieldIfMissing(frontmatter, import_core14.FrontmatterKeys.Ocupaciones, contact.occupations);
+    this.updateFieldIfMissing(frontmatter, import_core14.FrontmatterKeys.Intereses, contact.interests);
+    this.updateFieldIfMissing(frontmatter, import_core14.FrontmatterKeys.Habilidades, contact.skills);
+    this.updateFieldIfMissing(frontmatter, import_core14.FrontmatterKeys.Residencias, contact.residences);
     if (contact.customFields) {
       for (const [key, value] of Object.entries(contact.customFields)) {
         if (key === "eloSyncDate")
@@ -22621,12 +22033,12 @@ var _GoogleContactTransformer = class _GoogleContactTransformer {
     return {
       id: frontmatter[_GoogleContactTransformer.GOOGLE_ID_KEY],
       name: this.clean(finalName),
-      phone: this.clean(this.toArray(frontmatter[import_core20.FrontmatterKeys.Telefono])),
-      email: this.clean(this.toArray(frontmatter[import_core20.FrontmatterKeys.Email])),
-      birthday: this.clean(frontmatter[import_core20.FrontmatterKeys.Cumpleanos]),
+      phone: this.clean(this.toArray(frontmatter[import_core14.FrontmatterKeys.Telefono])),
+      email: this.clean(this.toArray(frontmatter[import_core14.FrontmatterKeys.Email])),
+      birthday: this.clean(frontmatter[import_core14.FrontmatterKeys.Cumpleanos]),
       nickname: this.getStringFromCleaned(this.clean(frontmatter["aliases"])),
-      jobTitle: this.clean(frontmatter[import_core20.FrontmatterKeys.Puesto]),
-      organization: this.clean(frontmatter[import_core20.FrontmatterKeys.Empresa]),
+      jobTitle: this.clean(frontmatter[import_core14.FrontmatterKeys.Puesto]),
+      organization: this.clean(frontmatter[import_core14.FrontmatterKeys.Empresa]),
       customFields: {
         eloSyncDate: (/* @__PURE__ */ new Date()).toISOString()
       },
@@ -22708,34 +22120,34 @@ var SyncGoogleContactsCommand = class {
   }
   async execute(file) {
     const targetFile = file || this.app.workspace.getActiveFile();
-    if (!targetFile || !(targetFile instanceof import_obsidian28.TFile)) {
-      new import_obsidian28.Notice("No hay ninguna nota activa.");
+    if (!targetFile || !(targetFile instanceof import_obsidian25.TFile)) {
+      new import_obsidian25.Notice("No hay ninguna nota activa.");
       return;
     }
     if (!this.isPersona(targetFile)) {
-      new import_obsidian28.Notice("La nota activa no es una Persona (falta tag #Personas).");
+      new import_obsidian25.Notice("La nota activa no es una Persona (falta tag #Personas).");
       return;
     }
     const view = getActiveMarkdownView(this.app, targetFile);
     if (!view) {
-      new import_obsidian28.Notice("No se pudo obtener la vista de la nota para activar el modo edici\xF3n.");
+      new import_obsidian25.Notice("No se pudo obtener la vista de la nota para activar el modo edici\xF3n.");
       return;
     }
     await executeInEditMode(view, async () => {
-      new import_obsidian28.Notice(`Sincronizando con Google: ${targetFile.basename}...`);
+      new import_obsidian25.Notice(`Sincronizando con Google: ${targetFile.basename}...`);
       try {
         await this.service.syncNoteWithGoogle(targetFile);
-        new import_obsidian28.Notice(`Sincronizaci\xF3n con Google completada para ${targetFile.basename}`);
+        new import_obsidian25.Notice(`Sincronizaci\xF3n con Google completada para ${targetFile.basename}`);
       } catch (e) {
         console.error(`Error syncing ${targetFile.basename}:`, e);
         const msg = e.message;
         if (msg.includes("Refresh Token is missing") || msg.includes("No Google tokens") || msg.includes("401") || msg.includes("403") || msg.includes("invalid_grant") || msg.includes("Token has been expired")) {
-          new import_obsidian28.Notice("Autenticaci\xF3n necesaria con Google.");
+          new import_obsidian25.Notice("Autenticaci\xF3n necesaria con Google.");
           new GoogleAuthModal(this.app, this.adapter, async () => {
-            new import_obsidian28.Notice("Autenticado correctamente. Ejecuta el comando de nuevo.");
+            new import_obsidian25.Notice("Autenticado correctamente. Ejecuta el comando de nuevo.");
           }).open();
         } else {
-          new import_obsidian28.Notice(`Error al sincronizar con Google: ${msg}`);
+          new import_obsidian25.Notice(`Error al sincronizar con Google: ${msg}`);
         }
       }
     });
@@ -22744,7 +22156,7 @@ var SyncGoogleContactsCommand = class {
     const cache = this.app.metadataCache.getFileCache(file);
     if (!cache)
       return false;
-    const tags = (0, import_obsidian28.getAllTags)(cache);
+    const tags = (0, import_obsidian25.getAllTags)(cache);
     if (tags && tags.some((t) => t.startsWith("#Personas/"))) {
       return true;
     }
@@ -22753,7 +22165,7 @@ var SyncGoogleContactsCommand = class {
 };
 
 // src/Infrastructure/Obsidian/Commands/Contacts/ProcessUnsyncedGoogleContactsCommand.ts
-var import_obsidian29 = require("obsidian");
+var import_obsidian26 = require("obsidian");
 var ProcessUnsyncedGoogleContactsCommand = class {
   constructor(app, plugin) {
     this.app = app;
@@ -22768,17 +22180,17 @@ var ProcessUnsyncedGoogleContactsCommand = class {
     this.service = new GoogleContactSyncService(app, this.adapter, transformer);
   }
   async execute() {
-    new import_obsidian29.Notice("Buscando contactos no sincronizados en Google...");
+    new import_obsidian26.Notice("Buscando contactos no sincronizados en Google...");
     try {
       const matches = await this.fetchUnsyncedContacts();
       if (matches.length === 0) {
-        new import_obsidian29.Notice("No se encontraron contactos pendientes de sincronizar.");
+        new import_obsidian26.Notice("No se encontraron contactos pendientes de sincronizar.");
         return;
       }
       new UnsyncedContactsBatchModal(this.app, matches, this.adapter, this.service).open();
     } catch (e) {
       console.error("Error fetching unsynced contacts:", e);
-      new import_obsidian29.Notice(`Error: ${e.message}`);
+      new import_obsidian26.Notice(`Error: ${e.message}`);
     }
   }
   async fetchUnsyncedContacts() {
@@ -22825,7 +22237,7 @@ var ProcessUnsyncedGoogleContactsCommand = class {
     return files.find((f) => f.basename.toLowerCase().includes(lowerName) || lowerName.includes(f.basename.toLowerCase()));
   }
 };
-var UnsyncedContactsBatchModal = class extends import_obsidian29.Modal {
+var UnsyncedContactsBatchModal = class extends import_obsidian26.Modal {
   constructor(app, matches, adapter, service) {
     super(app);
     this.matches = matches;
@@ -22855,7 +22267,7 @@ var UnsyncedContactsBatchModal = class extends import_obsidian29.Modal {
       infoDiv.createDiv({ text: `\u{1F4A1} Sugerencia: [[${match.suggestedNote.basename}]]`, attr: { style: "color: var(--text-accent); font-size: 0.9em;" } });
     }
     const actionsDiv = itemDiv.createDiv({ attr: { style: "display: flex; gap: 5px;" } });
-    new import_obsidian29.ButtonComponent(actionsDiv).setButtonText(match.suggestedNote ? "Enlazar" : "Enlazar...").setIcon("link").setTooltip(match.suggestedNote ? `Enlazar con ${match.suggestedNote.basename}` : "Buscar nota para enlazar").onClick(async () => {
+    new import_obsidian26.ButtonComponent(actionsDiv).setButtonText(match.suggestedNote ? "Enlazar" : "Enlazar...").setIcon("link").setTooltip(match.suggestedNote ? `Enlazar con ${match.suggestedNote.basename}` : "Buscar nota para enlazar").onClick(async () => {
       if (match.suggestedNote) {
         await this.service.linkContactToNote(match.contact, match.suggestedNote);
         itemDiv.remove();
@@ -22866,26 +22278,26 @@ var UnsyncedContactsBatchModal = class extends import_obsidian29.Modal {
         }).open();
       }
     });
-    new import_obsidian29.ButtonComponent(actionsDiv).setButtonText("Crear").setIcon("file-plus").setCta().setTooltip("Crear nueva nota en Personas/Conocidos-mios").onClick(async () => {
+    new import_obsidian26.ButtonComponent(actionsDiv).setButtonText("Crear").setIcon("file-plus").setCta().setTooltip("Crear nueva nota en Personas/Conocidos-mios").onClick(async () => {
       const newFile = await this.service.createNoteFromContact(match.contact);
-      new import_obsidian29.Notice(`Nota creada: ${newFile.basename}`);
+      new import_obsidian26.Notice(`Nota creada: ${newFile.basename}`);
       itemDiv.remove();
     });
-    new import_obsidian29.ButtonComponent(actionsDiv).setButtonText("Mover").setIcon("import").setTooltip("Crear nota y eliminar de Google").onClick(async () => {
+    new import_obsidian26.ButtonComponent(actionsDiv).setButtonText("Mover").setIcon("import").setTooltip("Crear nota y eliminar de Google").onClick(async () => {
       if (confirm(`\xBFCrear nota para "${match.contact.name}" y eliminarlo de Google?`)) {
         await this.service.createNoteFromContact(match.contact);
         if (match.contact.id) {
           await this.adapter.deleteContact(match.contact.id);
-          new import_obsidian29.Notice(`Movido a Obsidian: ${match.contact.name}`);
+          new import_obsidian26.Notice(`Movido a Obsidian: ${match.contact.name}`);
         }
         itemDiv.remove();
       }
     });
-    new import_obsidian29.ButtonComponent(actionsDiv).setButtonText("Eliminar").setIcon("trash").setWarning().setTooltip("Eliminar de Google Contacts").onClick(async () => {
+    new import_obsidian26.ButtonComponent(actionsDiv).setButtonText("Eliminar").setIcon("trash").setWarning().setTooltip("Eliminar de Google Contacts").onClick(async () => {
       if (confirm(`\xBFSeguro que quieres eliminar a "${match.contact.name}" de Google Contacts?`)) {
         if (match.contact.id) {
           await this.adapter.deleteContact(match.contact.id);
-          new import_obsidian29.Notice(`Eliminado de Google: ${match.contact.name}`);
+          new import_obsidian26.Notice(`Eliminado de Google: ${match.contact.name}`);
         }
         itemDiv.remove();
       }
@@ -22896,7 +22308,7 @@ var UnsyncedContactsBatchModal = class extends import_obsidian29.Modal {
     contentEl.empty();
   }
 };
-var NoteSelectionModal = class extends import_obsidian29.FuzzySuggestModal {
+var NoteSelectionModal = class extends import_obsidian26.FuzzySuggestModal {
   constructor(app, contact, onSelect) {
     super(app);
     this.contact = contact;
@@ -22977,10 +22389,10 @@ var TokenizeAndCreateDictionaryNotesCommand = class {
 };
 
 // src/Infrastructure/Obsidian/Commands/GoogleKeep/ImportKeepTakeoutCommand.ts
-var import_obsidian30 = require("obsidian");
+var import_obsidian27 = require("obsidian");
 var fs3 = __toESM(require("fs"));
 var path4 = __toESM(require("path"));
-var ImportModal = class extends import_obsidian30.Modal {
+var ImportModal = class extends import_obsidian27.Modal {
   constructor(app, onSubmit) {
     super(app);
     this.result = "";
@@ -22989,12 +22401,12 @@ var ImportModal = class extends import_obsidian30.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.createEl("h2", { text: "Importar Google Keep desde Takeout" });
-    new import_obsidian30.Setting(contentEl).setName("Ruta de la carpeta 'Keep'").setDesc("Ruta absoluta donde se encuentran los archivos JSON y las im\xE1genes (ej: /Users/usuario/Downloads/Takeout/Keep)").addText(
+    new import_obsidian27.Setting(contentEl).setName("Ruta de la carpeta 'Keep'").setDesc("Ruta absoluta donde se encuentran los archivos JSON y las im\xE1genes (ej: /Users/usuario/Downloads/Takeout/Keep)").addText(
       (text) => text.onChange((value) => {
         this.result = value;
       })
     );
-    new import_obsidian30.Setting(contentEl).addButton((btn) => btn.setButtonText("Importar").setCta().onClick(() => {
+    new import_obsidian27.Setting(contentEl).addButton((btn) => btn.setButtonText("Importar").setCta().onClick(() => {
       this.close();
       this.onSubmit(this.result);
     }));
@@ -23016,10 +22428,10 @@ var ImportKeepTakeoutCommand = class {
     }).open();
   }
   async importNotes(folderPath) {
-    const notice = new import_obsidian30.Notice("Iniciando importaci\xF3n...", 0);
+    const notice = new import_obsidian27.Notice("Iniciando importaci\xF3n...", 0);
     try {
       if (!fs3.existsSync(folderPath)) {
-        new import_obsidian30.Notice("La carpeta especificada no existe.");
+        new import_obsidian27.Notice("La carpeta especificada no existe.");
         return;
       }
       const files = fs3.readdirSync(folderPath);
@@ -23044,10 +22456,10 @@ var ImportKeepTakeoutCommand = class {
           console.error(`Error parsing ${file}:`, e);
         }
       }
-      new import_obsidian30.Notice(`Importaci\xF3n completada. ${current} notas procesadas.`);
+      new import_obsidian27.Notice(`Importaci\xF3n completada. ${current} notas procesadas.`);
     } catch (e) {
       console.error(e);
-      new import_obsidian30.Notice("Error durante la importaci\xF3n. Revisa la consola.");
+      new import_obsidian27.Notice("Error durante la importaci\xF3n. Revisa la consola.");
     } finally {
       notice.hide();
     }
@@ -23124,10 +22536,10 @@ var ImportKeepTakeoutCommand = class {
 };
 
 // src/Infrastructure/Obsidian/Commands/Series/DownloadSubtitlesCommand.ts
-var import_obsidian32 = require("obsidian");
+var import_obsidian29 = require("obsidian");
 
 // src/Infrastructure/Obsidian/Services/OpenSubtitlesService.ts
-var import_obsidian31 = require("obsidian");
+var import_obsidian28 = require("obsidian");
 var OpenSubtitlesService = class {
   constructor(settings) {
     this.settings = settings;
@@ -23138,7 +22550,7 @@ var OpenSubtitlesService = class {
     if (!this.settings.apiKey || !this.settings.username || !this.settings.password) {
       throw new Error("OpenSubtitles credentials are missing in settings.");
     }
-    const response = await (0, import_obsidian31.requestUrl)({
+    const response = await (0, import_obsidian28.requestUrl)({
       url: `${this.baseUrl}/login`,
       method: "POST",
       headers: {
@@ -23177,7 +22589,7 @@ var OpenSubtitlesService = class {
       languages: "en"
     });
     const url = `${this.baseUrl}/subtitles?${params.toString()}`;
-    const response = await (0, import_obsidian31.requestUrl)({
+    const response = await (0, import_obsidian28.requestUrl)({
       url,
       method: "GET",
       headers
@@ -23190,7 +22602,7 @@ var OpenSubtitlesService = class {
   }
   async download(fileId) {
     const headers = await this.getAuthHeaders();
-    const response = await (0, import_obsidian31.requestUrl)({
+    const response = await (0, import_obsidian28.requestUrl)({
       url: `${this.baseUrl}/download`,
       method: "POST",
       headers,
@@ -23202,7 +22614,7 @@ var OpenSubtitlesService = class {
       throw new Error(`OpenSubtitles Download Step 1 Failed: ${response.text}`);
     }
     const downloadUrl = response.json.link;
-    const fileResponse = await (0, import_obsidian31.requestUrl)({
+    const fileResponse = await (0, import_obsidian28.requestUrl)({
       url: downloadUrl,
       method: "GET"
     });
@@ -23228,38 +22640,38 @@ var DownloadSubtitlesCommand = class {
         var _a2;
         const frontmatter = (_a2 = this.plugin.app.metadataCache.getFileCache(view.file)) == null ? void 0 : _a2.frontmatter;
         if (!frontmatter) {
-          new import_obsidian32.Notice("No frontmatter found.");
+          new import_obsidian29.Notice("No frontmatter found.");
           return;
         }
         const serie = frontmatter["Serie"];
         const season = frontmatter["Temporada"];
         const episode = frontmatter["Capitulo"];
         if (!serie || !season || !episode) {
-          new import_obsidian32.Notice("Missing Serie, Temporada, or Capitulo fields.");
+          new import_obsidian29.Notice("Missing Serie, Temporada, or Capitulo fields.");
           return;
         }
-        new import_obsidian32.Notice(`Searching subtitles for ${serie} S${season}E${episode}...`);
+        new import_obsidian29.Notice(`Searching subtitles for ${serie} S${season}E${episode}...`);
         try {
           const results = await this.service.search(serie, Number(season), Number(episode));
           if (results.length === 0) {
-            new import_obsidian32.Notice("No subtitles found.");
+            new import_obsidian29.Notice("No subtitles found.");
             return;
           }
           const bestMatch = results[0];
           if (!bestMatch.attributes.files || bestMatch.attributes.files.length === 0) {
-            new import_obsidian32.Notice("Subtitle entry has no files.");
+            new import_obsidian29.Notice("Subtitle entry has no files.");
             return;
           }
           const fileId = bestMatch.attributes.files[0].file_id;
-          new import_obsidian32.Notice("Downloading subtitle...");
+          new import_obsidian29.Notice("Downloading subtitle...");
           const subtitleContent = await this.service.download(fileId);
           const currentContent = editor.getValue();
           const newContent = currentContent + "\n\n## Subtitles\n\n" + subtitleContent;
           editor.setValue(newContent);
-          new import_obsidian32.Notice("Subtitles downloaded and appended.");
+          new import_obsidian29.Notice("Subtitles downloaded and appended.");
         } catch (error) {
           console.error(error);
-          new import_obsidian32.Notice("Error downloading subtitles. Check console.");
+          new import_obsidian29.Notice("Error downloading subtitles. Check console.");
         }
       }
     };
@@ -23267,11 +22679,11 @@ var DownloadSubtitlesCommand = class {
 };
 
 // src/Infrastructure/Obsidian/Commands/Music/ImportSpotifyPlaylistCommand.ts
-var import_obsidian34 = require("obsidian");
+var import_obsidian31 = require("obsidian");
 
 // src/Infrastructure/Obsidian/Views/Modals/SpotifyPlaylistModal.ts
-var import_obsidian33 = require("obsidian");
-var SpotifyPlaylistModal = class extends import_obsidian33.Modal {
+var import_obsidian30 = require("obsidian");
+var SpotifyPlaylistModal = class extends import_obsidian30.Modal {
   constructor(app, musicService, onImport) {
     super(app);
     this.playlists = [];
@@ -23385,14 +22797,14 @@ var SpotifyPlaylistModal = class extends import_obsidian33.Modal {
 };
 
 // src/Infrastructure/Obsidian/Commands/Music/ImportSpotifyPlaylistCommand.ts
-var import_core21 = __toESM(require_dist());
+var import_core15 = __toESM(require_dist());
 var ImportSpotifyPlaylistCommand = class {
   constructor(app, spotifyAdapter, musicService, onAuthRequired) {
     this.app = app;
     this.spotifyAdapter = spotifyAdapter;
     this.musicService = musicService;
     this.onAuthRequired = onAuthRequired;
-    this.id = import_core21.CommandEnum.ImportPlaylistTracks;
+    this.id = import_core15.CommandEnum.ImportPlaylistTracks;
     this.name = "Import Spotify Playlist";
   }
   checkCallback(checking) {
@@ -23404,7 +22816,7 @@ var ImportSpotifyPlaylistCommand = class {
       return true;
     }
     if (!checking) {
-      new import_obsidian34.Notice("Please open a Markdown note (checklist) to import tracks.");
+      new import_obsidian31.Notice("Please open a Markdown note (checklist) to import tracks.");
     }
     return false;
   }
@@ -23529,411 +22941,12 @@ var NaturalLanguageSearchCommand = class {
 };
 
 // src/Infrastructure/Obsidian/main.ts
-var import_core32 = __toESM(require_dist());
-var import_core33 = __toESM(require_dist());
-
-// src/Infrastructure/Adapters/GoogleMapsAdapter/GoogleMapsAdapter.ts
-var import_obsidian35 = require("obsidian");
-var EMPTY_PLACE_DETAILS = {
-  municipio: "",
-  provincia: "",
-  region: "",
-  pais: ""
-};
-var LOG_PREFIX = "[elo-obsidian-ext]";
-var GoogleMapsAdapter = class {
-  constructor(apiKey, app) {
-    this.apiKey = apiKey.trim();
-    this.app = app;
-  }
-  async requestPlaceDetails(params) {
-    var _a2, _b, _c;
-    if (!this.apiKey) {
-      showMessage(
-        "Configura tu clave de la API de Google Maps en los ajustes para completar los datos de un lugar."
-      );
-      return null;
-    }
-    const trimmedName = params.placeName.trim();
-    if (!trimmedName && !params.placeId) {
-      console.warn(
-        `${LOG_PREFIX} Google Maps request omitido: el nombre del lugar y el ID est\xE1n vac\xEDos.`
-      );
-      return EMPTY_PLACE_DETAILS;
-    }
-    try {
-      let placeIdToUse = params.placeId;
-      if (placeIdToUse && /^0x[a-fA-F0-9]+:0x[a-fA-F0-9]+$/.test(placeIdToUse)) {
-        console.info(`${LOG_PREFIX} Detectado ID hexadecimal (CID). Resolviendo a Place ID est\xE1ndar...`);
-        const resolvedPlaceId = await this.resolveCidToPlaceId(placeIdToUse);
-        if (resolvedPlaceId) {
-          placeIdToUse = resolvedPlaceId;
-          console.info(`${LOG_PREFIX} CID resuelto a Place ID: ${placeIdToUse}`);
-        } else {
-          console.warn(`${LOG_PREFIX} No se pudo resolver el CID a Place ID.`);
-          if (trimmedName) {
-            console.info(`${LOG_PREFIX} Usando nombre "${trimmedName}" como fallback.`);
-            placeIdToUse = void 0;
-          } else {
-            showMessage("No se pudo resolver el ID de Google Maps y no hay nombre asociado.");
-            return null;
-          }
-        }
-      }
-      let query;
-      if (placeIdToUse) {
-        query = new URLSearchParams({
-          place_id: placeIdToUse,
-          key: this.apiKey,
-          language: "es"
-        });
-      } else {
-        query = new URLSearchParams({
-          address: trimmedName,
-          key: this.apiKey,
-          language: "es"
-        });
-      }
-      const response = await (0, import_obsidian35.requestUrl)({
-        url: `https://maps.googleapis.com/maps/api/geocode/json?${query.toString()}`,
-        method: "GET"
-      });
-      const data = (_a2 = response.json) != null ? _a2 : JSON.parse(response.text);
-      if (!data || typeof data !== "object") {
-        console.error(
-          `${LOG_PREFIX} Google Maps devolvi\xF3 una respuesta inesperada para "${trimmedName}".`,
-          data
-        );
-        showMessage(
-          "No se pudo interpretar la respuesta de Google Maps. Revisa la consola."
-        );
-        return null;
-      }
-      console.log({ google_maps: data });
-      const status = typeof data.status === "string" ? data.status : "";
-      if (status !== "OK") {
-        if (status === "ZERO_RESULTS") {
-          console.warn(
-            `${LOG_PREFIX} Google Maps no encontr\xF3 resultados para "${trimmedName}".`
-          );
-          showMessage(
-            `Google Maps no encontr\xF3 resultados para "${trimmedName}".`
-          );
-          return { ...EMPTY_PLACE_DETAILS };
-        }
-        if (status === "INVALID_REQUEST") {
-          console.error(`${LOG_PREFIX} Google Maps INVALID_REQUEST. PlaceID: ${placeIdToUse}, Name: ${trimmedName}`);
-          showMessage("Error en la petici\xF3n a Google Maps (IDs inv\xE1lidos).");
-          return null;
-        }
-        const errorMessage = typeof data.error_message === "string" ? data.error_message : "Consulta la consola para m\xE1s detalles.";
-        console.error(
-          `${LOG_PREFIX} Google Maps rechaz\xF3 la petici\xF3n (${status}) para "${trimmedName}": ${errorMessage}`
-        );
-        showMessage(
-          "Google Maps rechaz\xF3 la petici\xF3n. Consulta la consola para m\xE1s detalles."
-        );
-        return null;
-      }
-      const results = Array.isArray(data.results) ? data.results : [];
-      if (results.length === 0) {
-        console.warn(
-          `${LOG_PREFIX} Google Maps devolvi\xF3 una respuesta sin resultados para "${trimmedName}".`
-        );
-        return { ...EMPTY_PLACE_DETAILS };
-      }
-      let selectedResult;
-      if (results.length > 1) {
-        const userSelection = await this.askUserToSelect(results);
-        if (!userSelection) {
-          showMessage("Selecci\xF3n cancelada por el usuario.");
-          return null;
-        }
-        selectedResult = userSelection;
-      } else {
-        selectedResult = results[0];
-      }
-      const placeDetails = this.extractPlaceDetails(selectedResult, 0);
-      if (!placeDetails.municipio && placeDetails.provincia && placeDetails.pais) {
-        console.warn(
-          `${LOG_PREFIX} Google Maps no devolvi\xF3 municipio, pero s\xED provincia y pa\xEDs para "${trimmedName}". Intentando recuperar el municipio...`
-        );
-        const bestLocation = (_b = selectedResult.geometry) == null ? void 0 : _b.location;
-        if (bestLocation) {
-          console.info(
-            `${LOG_PREFIX} en (${bestLocation.lat}, ${bestLocation.lng})...`
-          );
-          try {
-            const reverseQuery = new URLSearchParams({
-              latlng: `${bestLocation.lat},${bestLocation.lng}`,
-              key: this.apiKey,
-              language: "es"
-            });
-            const reverseResponse = await (0, import_obsidian35.requestUrl)({
-              url: `https://maps.googleapis.com/maps/api/geocode/json?${reverseQuery.toString()}`,
-              method: "GET"
-            });
-            const reverseData = (_c = reverseResponse.json) != null ? _c : JSON.parse(reverseResponse.text);
-            if (reverseData && reverseData.status === "OK" && Array.isArray(reverseData.results) && reverseData.results.length > 0) {
-              const reverseBest = this.extractPlaceDetails(reverseData.results[0], 0);
-              console.log({ reverseBest, placeDetails });
-              if (!placeDetails.municipio && reverseBest.municipio)
-                placeDetails.municipio = reverseBest.municipio;
-              if (!placeDetails.provincia && reverseBest.provincia)
-                placeDetails.provincia = reverseBest.provincia;
-              if (!placeDetails.region && reverseBest.region)
-                placeDetails.region = reverseBest.region;
-              if (!placeDetails.pais && reverseBest.pais)
-                placeDetails.pais = reverseBest.pais;
-              console.info(
-                `${LOG_PREFIX} Datos actualizados tras geocodificaci\xF3n inversa:`,
-                placeDetails
-              );
-            }
-          } catch (reverseError) {
-            console.error(
-              `${LOG_PREFIX} Fall\xF3 la geocodificaci\xF3n inversa.`,
-              reverseError
-            );
-          }
-        }
-      } else {
-        console.info(
-          `${LOG_PREFIX} Google Maps resolvi\xF3 "${trimmedName}" correctamente.`
-        );
-      }
-      this.normalizeSpanishRegion(placeDetails);
-      console.log({ placeDetails });
-      return placeDetails;
-    } catch (error) {
-      console.error(
-        `${LOG_PREFIX} Error al consultar Google Maps para "${trimmedName}".`,
-        error
-      );
-      showMessage(
-        "Google Maps no respondi\xF3. Revisa la consola para m\xE1s detalles."
-      );
-      return null;
-    }
-  }
-  async resolveCidToPlaceId(hexCid) {
-    var _a2;
-    try {
-      const parts = hexCid.split(":");
-      if (parts.length !== 2)
-        return null;
-      const cidHex = parts[1];
-      const cidDecimal = BigInt(cidHex).toString();
-      const query = new URLSearchParams({
-        input: `cid:${cidDecimal}`,
-        inputtype: "textquery",
-        fields: "place_id",
-        key: this.apiKey
-      });
-      const url = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?${query.toString()}`;
-      const response = await (0, import_obsidian35.requestUrl)({
-        url,
-        method: "GET"
-      });
-      const data = (_a2 = response.json) != null ? _a2 : JSON.parse(response.text);
-      if (data.status === "OK" && Array.isArray(data.candidates) && data.candidates.length > 0) {
-        return data.candidates[0].place_id;
-      }
-      console.warn(`${LOG_PREFIX} resolveCidToPlaceId failed: ${data.status}`, data);
-      return null;
-    } catch (e) {
-      console.error(`${LOG_PREFIX} resolveCidToPlaceId error`, e);
-      return null;
-    }
-  }
-  async askUserToSelect(results) {
-    return new Promise((resolve) => {
-      const modal = new GoogleMapsSuggestModal(this.app, results, (selected) => {
-        resolve(selected);
-      });
-      modal.open();
-    });
-  }
-  extractPlaceDetails(result, index) {
-    var _a2, _b;
-    const components = Array.isArray(result.address_components) ? result.address_components : [];
-    const lookup = (types) => {
-      for (const component of components) {
-        const componentTypes = Array.isArray(component.types) ? component.types : [];
-        if (types.some((type) => componentTypes.includes(type))) {
-          const value = typeof component.long_name === "string" ? component.long_name.trim() : "";
-          if (value) {
-            return value;
-          }
-        }
-      }
-      return "";
-    };
-    const lugar = lookup([
-      "locality"
-    ]);
-    const barrio = lookup([
-      "postal_town",
-      "sublocality"
-    ]);
-    const municipio = lookup([
-      "administrative_area_level_4",
-      "administrative_area_level_3"
-    ]);
-    const provincia = lookup([
-      "administrative_area_level_2"
-    ]);
-    const region = lookup(["administrative_area_level_1"]);
-    const pais = lookup(["country"]);
-    const googlePlaceId = result.place_id;
-    const lat = (_a2 = result.geometry) == null ? void 0 : _a2.location.lat;
-    const lng = (_b = result.geometry) == null ? void 0 : _b.location.lng;
-    console.info(
-      `${LOG_PREFIX} Evaluando resultado #${index + 1} para geocodificaci\xF3n.`,
-      {
-        lugar,
-        barrio,
-        municipio,
-        provincia,
-        region,
-        pais,
-        placeId: result.place_id,
-        formatted_address: result.formatted_address
-      }
-    );
-    return { lugar, barrio, municipio, provincia, region, pais, googlePlaceId, lat, lng };
-  }
-  normalizeSpanishRegion(place) {
-    if (!place.pais || place.pais.toLowerCase() !== "espa\xF1a" && place.pais.toLowerCase() !== "spain") {
-      return;
-    }
-    if (!place.provincia) {
-      return;
-    }
-    const normalizedProvincia = place.provincia.trim();
-    const region = PROVINCE_TO_REGION[normalizedProvincia];
-    if (region) {
-      console.info(
-        `${LOG_PREFIX} Normalizando regi\xF3n para Espa\xF1a: "${normalizedProvincia}" -> "${region}"`
-      );
-      place.region = region;
-    }
-  }
-};
-var GoogleMapsSuggestModal = class extends import_obsidian35.SuggestModal {
-  constructor(app, results, resolve) {
-    super(app);
-    this.results = results;
-    this.isResolved = false;
-    this.resolve = resolve;
-    console.log("[GoogleMapsSuggestModal] Created (SuggestModal) with results:", results.length);
-  }
-  getSuggestions(query) {
-    const lowerQuery = query.toLowerCase();
-    return this.results.filter((item) => {
-      const text = item.formatted_address || "";
-      return text.toLowerCase().includes(lowerQuery);
-    });
-  }
-  renderSuggestion(item, el) {
-    el.createEl("div", { text: item.formatted_address || "Ubicaci\xF3n desconocida" });
-  }
-  selectSuggestion(value, evt) {
-    console.log("[GoogleMapsSuggestModal] selectSuggestion called (pre-super)", value);
-    this.isResolved = true;
-    this.resolve(value);
-    super.selectSuggestion(value, evt);
-  }
-  onChooseSuggestion(item, evt) {
-    console.log("[GoogleMapsSuggestModal] onChooseSuggestion called", item);
-  }
-  onClose() {
-    console.log("[GoogleMapsSuggestModal] onClose called. isResolved:", this.isResolved);
-    if (!this.isResolved) {
-      this.resolve(null);
-    }
-  }
-};
-var PROVINCE_TO_REGION = {
-  Alava: "Pa\xEDs Vasco",
-  \u00C1lava: "Pa\xEDs Vasco",
-  Araba: "Pa\xEDs Vasco",
-  Albacete: "Castilla-La Mancha",
-  Alicante: "Comunitat Valenciana",
-  Alacant: "Comunitat Valenciana",
-  Almer\u00EDa: "Andaluc\xEDa",
-  Asturias: "Principado de Asturias",
-  Avila: "Castilla y Le\xF3n",
-  \u00C1vila: "Castilla y Le\xF3n",
-  Badajoz: "Extremadura",
-  Baleares: "Illes Balears",
-  "Illes Balears": "Illes Balears",
-  Barcelona: "Catalu\xF1a",
-  Burgos: "Castilla y Le\xF3n",
-  Caceres: "Extremadura",
-  C\u00E1ceres: "Extremadura",
-  Cadiz: "Andaluc\xEDa",
-  C\u00E1diz: "Andaluc\xEDa",
-  Cantabria: "Cantabria",
-  Castellon: "Comunitat Valenciana",
-  Castell\u00F3n: "Comunitat Valenciana",
-  Castell\u00F3: "Comunitat Valenciana",
-  Ceuta: "Ceuta",
-  "Ciudad Real": "Castilla-La Mancha",
-  Cordoba: "Andaluc\xEDa",
-  C\u00F3rdoba: "Andaluc\xEDa",
-  Cuenca: "Castilla-La Mancha",
-  Gerona: "Catalu\xF1a",
-  Girona: "Catalu\xF1a",
-  Granada: "Andaluc\xEDa",
-  Guadalajara: "Castilla-La Mancha",
-  Guipuzcoa: "Pa\xEDs Vasco",
-  Guip\u00FAzcoa: "Pa\xEDs Vasco",
-  Gipuzkoa: "Pa\xEDs Vasco",
-  Huelva: "Andaluc\xEDa",
-  Huesca: "Arag\xF3n",
-  Jaen: "Andaluc\xEDa",
-  Ja\u00E9n: "Andaluc\xEDa",
-  "La Coru\xF1a": "Galicia",
-  "A Coru\xF1a": "Galicia",
-  "La Rioja": "La Rioja",
-  "Las Palmas": "Canarias",
-  Leon: "Castilla y Le\xF3n",
-  Le\u00F3n: "Castilla y Le\xF3n",
-  Lerida: "Catalu\xF1a",
-  L\u00E9rida: "Catalu\xF1a",
-  Lleida: "Catalu\xF1a",
-  Lugo: "Galicia",
-  Madrid: "Comunidad de Madrid",
-  Malaga: "Andaluc\xEDa",
-  M\u00E1laga: "Andaluc\xEDa",
-  Melilla: "Melilla",
-  Murcia: "Regi\xF3n de Murcia",
-  Navarra: "Comunidad Foral de Navarra",
-  Orense: "Galicia",
-  Ourense: "Galicia",
-  Palencia: "Castilla y Le\xF3n",
-  Pontevedra: "Galicia",
-  Salamanca: "Castilla y Le\xF3n",
-  "Santa Cruz de Tenerife": "Canarias",
-  Segovia: "Castilla y Le\xF3n",
-  Sevilla: "Andaluc\xEDa",
-  Soria: "Castilla y Le\xF3n",
-  Tarragona: "Catalu\xF1a",
-  Teruel: "Arag\xF3n",
-  Toledo: "Castilla-La Mancha",
-  Valencia: "Comunitat Valenciana",
-  Val\u00E8ncia: "Comunitat Valenciana",
-  Valladolid: "Castilla y Le\xF3n",
-  Vizcaya: "Pa\xEDs Vasco",
-  Bizkaia: "Pa\xEDs Vasco",
-  Zamora: "Castilla y Le\xF3n",
-  Zaragoza: "Arag\xF3n"
-};
+var import_core25 = __toESM(require_dist());
+var import_core26 = __toESM(require_dist());
 
 // src/Infrastructure/Adapters/GoogleImageSearchAdapter/GoogleImageSearchAdapter.ts
-var import_obsidian36 = require("obsidian");
-var LOG_PREFIX2 = "[GoogleImageSearchAdapter]";
+var import_obsidian32 = require("obsidian");
+var LOG_PREFIX = "[GoogleImageSearchAdapter]";
 var GoogleImageSearchAdapter = class {
   constructor(apiKey, searchEngineId) {
     this.apiKey = apiKey;
@@ -23942,28 +22955,28 @@ var GoogleImageSearchAdapter = class {
   async searchImages(query, count) {
     var _a2;
     if (!this.apiKey || !this.searchEngineId) {
-      console.warn(`${LOG_PREFIX2} Missing API Key or Search Engine ID.`);
+      console.warn(`${LOG_PREFIX} Missing API Key or Search Engine ID.`);
       return [];
     }
     try {
       const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)}&cx=${this.searchEngineId}&key=${this.apiKey}&searchType=image&num=${count}`;
-      const response = await (0, import_obsidian36.requestUrl)({
+      const response = await (0, import_obsidian32.requestUrl)({
         url,
         method: "GET"
       });
       const data = (_a2 = response.json) != null ? _a2 : JSON.parse(response.text);
       if (data.error) {
-        console.error(`${LOG_PREFIX2} API Error: ${data.error.message}`);
+        console.error(`${LOG_PREFIX} API Error: ${data.error.message}`);
         showMessage(`Image search failed: ${data.error.message}`);
         return [];
       }
       if (!data.items || data.items.length === 0) {
-        console.warn(`${LOG_PREFIX2} No images found for query: "${query}"`);
+        console.warn(`${LOG_PREFIX} No images found for query: "${query}"`);
         return [];
       }
       return data.items.map((item) => item.link);
     } catch (error) {
-      console.error(`${LOG_PREFIX2} Unexpected error`, error);
+      console.error(`${LOG_PREFIX} Unexpected error`, error);
       showMessage("An error occurred while searching for images.");
       return [];
     }
@@ -23971,8 +22984,8 @@ var GoogleImageSearchAdapter = class {
 };
 
 // src/Infrastructure/Obsidian/Views/Settings/SettingsView.ts
-var import_obsidian37 = require("obsidian");
-var SettingsView = class extends import_obsidian37.PluginSettingTab {
+var import_obsidian33 = require("obsidian");
+var SettingsView = class extends import_obsidian33.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
@@ -23983,19 +22996,19 @@ var SettingsView = class extends import_obsidian37.PluginSettingTab {
     containerEl.createEl("h2", {
       text: "Elocuency Settings"
     });
-    new import_obsidian37.Setting(containerEl).setName("User Language").setDesc('Your primary language (e.g., "es").').addText((text) => {
+    new import_obsidian33.Setting(containerEl).setName("User Language").setDesc('Your primary language (e.g., "es").').addText((text) => {
       text.setPlaceholder("es").setValue(this.plugin.settings.userLanguage).onChange(async (value) => {
         this.plugin.settings.userLanguage = value.trim();
         await this.plugin.saveSettings();
       });
     });
-    new import_obsidian37.Setting(containerEl).setName("To Learn Language").setDesc('The language you are learning (e.g., "en").').addText((text) => {
+    new import_obsidian33.Setting(containerEl).setName("To Learn Language").setDesc('The language you are learning (e.g., "en").').addText((text) => {
       text.setPlaceholder("en").setValue(this.plugin.settings.toLearnLanguage).onChange(async (value) => {
         this.plugin.settings.toLearnLanguage = value.trim();
         await this.plugin.saveSettings();
       });
     });
-    new import_obsidian37.Setting(containerEl).setName("Note location strategy").setDesc(
+    new import_obsidian33.Setting(containerEl).setName("Note location strategy").setDesc(
       "Create notes alongside the source file or inside a fixed folder."
     ).addDropdown((dropdown) => {
       dropdown.addOption("same-folder", "Same folder as link source").addOption("fixed-folder", "Fixed folder").setValue(this.plugin.settings.locationStrategy).onChange(async (value) => {
@@ -24004,7 +23017,7 @@ var SettingsView = class extends import_obsidian37.PluginSettingTab {
         this.display();
       });
     });
-    new import_obsidian37.Setting(containerEl).setName("Target folder").setDesc(
+    new import_obsidian33.Setting(containerEl).setName("Target folder").setDesc(
       "Folder where notes are created when using the fixed folder strategy."
     ).addText((text) => {
       text.setPlaceholder("inbox").setValue(this.plugin.settings.targetFolder).onChange(async (value) => {
@@ -24012,14 +23025,14 @@ var SettingsView = class extends import_obsidian37.PluginSettingTab {
         await this.plugin.saveSettings();
       });
     });
-    new import_obsidian37.Setting(containerEl).setName("Note template").setDesc("Template used when creating new notes (supports {{title}}).").addTextArea((text) => {
+    new import_obsidian33.Setting(containerEl).setName("Note template").setDesc("Template used when creating new notes (supports {{title}}).").addTextArea((text) => {
       text.setPlaceholder("# {{title}}").setValue(this.plugin.settings.missingNotesTemplatePath).onChange(async (value) => {
         this.plugin.settings.missingNotesTemplatePath = value;
         await this.plugin.saveSettings();
       });
       text.inputEl.rows = 4;
     });
-    new import_obsidian37.Setting(containerEl).setName("Gemini API key").setDesc(
+    new import_obsidian33.Setting(containerEl).setName("Gemini API key").setDesc(
       "Used to ask Gemini for descriptions when a template has no body content."
     ).addText((text) => {
       text.setPlaceholder("AIza...").setValue(this.plugin.settings.geminiApiKey).onChange(async (value) => {
@@ -24028,13 +23041,13 @@ var SettingsView = class extends import_obsidian37.PluginSettingTab {
       });
       text.inputEl.type = "password";
     });
-    new import_obsidian37.Setting(containerEl).setName("Roles Folder").setDesc("Folder containing notes with roles for Chat Session (defined by !!prompt frontmatter).").addText((text) => {
+    new import_obsidian33.Setting(containerEl).setName("Roles Folder").setDesc("Folder containing notes with roles for Chat Session (defined by !!prompt frontmatter).").addText((text) => {
       text.setPlaceholder("Roles").setValue(this.plugin.settings.geminiRolesFolder).onChange(async (value) => {
         this.plugin.settings.geminiRolesFolder = value.trim();
         await this.plugin.saveSettings();
       });
     });
-    new import_obsidian37.Setting(containerEl).setName("Google Geocoding API key").setDesc(
+    new import_obsidian33.Setting(containerEl).setName("Google Geocoding API key").setDesc(
       "Used for Geocoding (backend queries). Restricted by IP if possible."
     ).addText((text) => {
       text.setPlaceholder("AIza...").setValue(this.plugin.settings.googleGeocodingAPIKey).onChange(async (value) => {
@@ -24043,7 +23056,7 @@ var SettingsView = class extends import_obsidian37.PluginSettingTab {
       });
       text.inputEl.type = "password";
     });
-    new import_obsidian37.Setting(containerEl).setName("Google Maps Embed API key").setDesc(
+    new import_obsidian33.Setting(containerEl).setName("Google Maps Embed API key").setDesc(
       "Used for rendering the map (frontend). Restricted by HTTP Referrer."
     ).addText((text) => {
       text.setPlaceholder("AIza...").setValue(this.plugin.settings.googleMapsEmbedAPIKey).onChange(async (value) => {
@@ -24052,53 +23065,53 @@ var SettingsView = class extends import_obsidian37.PluginSettingTab {
       });
       text.inputEl.type = "password";
     });
-    new import_obsidian37.Setting(containerEl).setName("Google Custom Search API key").setDesc("Used for searching images.").addText((text) => {
+    new import_obsidian33.Setting(containerEl).setName("Google Custom Search API key").setDesc("Used for searching images.").addText((text) => {
       text.setPlaceholder("AIza...").setValue(this.plugin.settings.googleCustomSearchApiKey).onChange(async (value) => {
         this.plugin.settings.googleCustomSearchApiKey = value.trim();
         await this.plugin.saveSettings();
       });
       text.inputEl.type = "password";
     });
-    new import_obsidian37.Setting(containerEl).setName("Google Custom Search Engine ID").setDesc("CX ID for the custom search engine.").addText((text) => {
+    new import_obsidian33.Setting(containerEl).setName("Google Custom Search Engine ID").setDesc("CX ID for the custom search engine.").addText((text) => {
       text.setPlaceholder("0123456789...").setValue(this.plugin.settings.googleCustomSearchEngineId).onChange(async (value) => {
         this.plugin.settings.googleCustomSearchEngineId = value.trim();
         await this.plugin.saveSettings();
       });
     });
-    new import_obsidian37.Setting(containerEl).setName("Spotify Client ID").setDesc("Required for Spotify integration.").addText((text) => {
+    new import_obsidian33.Setting(containerEl).setName("Spotify Client ID").setDesc("Required for Spotify integration.").addText((text) => {
       text.setPlaceholder("Client ID").setValue(this.plugin.settings.spotifyClientId).onChange(async (value) => {
         this.plugin.settings.spotifyClientId = value.trim();
         await this.plugin.saveSettings();
       });
     });
-    new import_obsidian37.Setting(containerEl).setName("Spotify Access Token").setDesc("Access token for Spotify API.").addText((text) => {
+    new import_obsidian33.Setting(containerEl).setName("Spotify Access Token").setDesc("Access token for Spotify API.").addText((text) => {
       text.setPlaceholder("Access Token").setValue(this.plugin.settings.spotifyAccessToken).onChange(async (value) => {
         this.plugin.settings.spotifyAccessToken = value.trim();
         await this.plugin.saveSettings();
       });
       text.inputEl.type = "password";
     });
-    new import_obsidian37.Setting(containerEl).setName("Spotify Redirect URI").setDesc("Must match exactly what is in Spotify Dashboard.").addText((text) => {
+    new import_obsidian33.Setting(containerEl).setName("Spotify Redirect URI").setDesc("Must match exactly what is in Spotify Dashboard.").addText((text) => {
       text.setPlaceholder("http://localhost:8080").setValue(this.plugin.settings.spotifyRedirectUri).onChange(async (value) => {
         this.plugin.settings.spotifyRedirectUri = value.trim();
         await this.plugin.saveSettings();
       });
     });
     containerEl.createEl("h3", { text: "Google Integration (Contacts)" });
-    new import_obsidian37.Setting(containerEl).setName("Google Client ID").setDesc("OAuth2 Client ID for Google People API.").addText((text) => {
+    new import_obsidian33.Setting(containerEl).setName("Google Client ID").setDesc("OAuth2 Client ID for Google People API.").addText((text) => {
       text.setPlaceholder("Client ID").setValue(this.plugin.settings.googleClientId).onChange(async (value) => {
         this.plugin.settings.googleClientId = value.trim();
         await this.plugin.saveSettings();
       });
     });
-    new import_obsidian37.Setting(containerEl).setName("Google Client Secret").setDesc("OAuth2 Client Secret.").addText((text) => {
+    new import_obsidian33.Setting(containerEl).setName("Google Client Secret").setDesc("OAuth2 Client Secret.").addText((text) => {
       text.setPlaceholder("Client Secret").setValue(this.plugin.settings.googleClientSecret).onChange(async (value) => {
         this.plugin.settings.googleClientSecret = value.trim();
         await this.plugin.saveSettings();
       });
       text.inputEl.type = "password";
     });
-    new import_obsidian37.Setting(containerEl).setName("Google Refresh Token").setDesc("OAuth2 Refresh Token (Get this via OAuth Playground or similar).").addText((text) => {
+    new import_obsidian33.Setting(containerEl).setName("Google Refresh Token").setDesc("OAuth2 Refresh Token (Get this via OAuth Playground or similar).").addText((text) => {
       text.setPlaceholder("Refresh Token").setValue(this.plugin.settings.googleRefreshToken).onChange(async (value) => {
         this.plugin.settings.googleRefreshToken = value.trim();
         await this.plugin.saveSettings();
@@ -24106,20 +23119,20 @@ var SettingsView = class extends import_obsidian37.PluginSettingTab {
       text.inputEl.type = "password";
     });
     containerEl.createEl("h3", { text: "OpenSubtitles" });
-    new import_obsidian37.Setting(containerEl).setName("API Key").setDesc("Consumer Key from OpenSubtitles.com API.").addText((text) => {
+    new import_obsidian33.Setting(containerEl).setName("API Key").setDesc("Consumer Key from OpenSubtitles.com API.").addText((text) => {
       text.setPlaceholder("API Key").setValue(this.plugin.settings.openSubtitlesApiKey).onChange(async (value) => {
         this.plugin.settings.openSubtitlesApiKey = value.trim();
         await this.plugin.saveSettings();
       });
       text.inputEl.type = "password";
     });
-    new import_obsidian37.Setting(containerEl).setName("Username").setDesc("OpenSubtitles.com Username.").addText((text) => {
+    new import_obsidian33.Setting(containerEl).setName("Username").setDesc("OpenSubtitles.com Username.").addText((text) => {
       text.setPlaceholder("Username").setValue(this.plugin.settings.openSubtitlesUsername).onChange(async (value) => {
         this.plugin.settings.openSubtitlesUsername = value.trim();
         await this.plugin.saveSettings();
       });
     });
-    new import_obsidian37.Setting(containerEl).setName("Password").setDesc("OpenSubtitles.com Password.").addText((text) => {
+    new import_obsidian33.Setting(containerEl).setName("Password").setDesc("OpenSubtitles.com Password.").addText((text) => {
       text.setPlaceholder("Password").setValue(this.plugin.settings.openSubtitlesPassword).onChange(async (value) => {
         this.plugin.settings.openSubtitlesPassword = value.trim();
         await this.plugin.saveSettings();
@@ -24130,7 +23143,7 @@ var SettingsView = class extends import_obsidian37.PluginSettingTab {
 };
 
 // src/Infrastructure/Obsidian/Views/Renderers/SpotifyPlayer.ts
-var import_obsidian38 = require("obsidian");
+var import_obsidian34 = require("obsidian");
 function registerSpotifyRenderer(plugin) {
   console.log("[SpotifyPlayer] Registering markdown post processor");
   plugin.registerMarkdownPostProcessor((element, context) => {
@@ -24166,7 +23179,7 @@ function registerSpotifyRenderer(plugin) {
         container.style.color = "var(--text-accent)";
         container.setAttribute("aria-label", `Play on Spotify`);
         const iconSpan = container.createSpan();
-        (0, import_obsidian38.setIcon)(iconSpan, "play-circle");
+        (0, import_obsidian34.setIcon)(iconSpan, "play-circle");
         container.addEventListener("click", (e) => {
           e.preventDefault();
           window.open(uri);
@@ -24183,7 +23196,7 @@ function registerSpotifyRenderer(plugin) {
 function renderFrontmatterPlayer(plugin, element, context) {
   var _a2;
   const file = plugin.app.vault.getAbstractFileByPath(context.sourcePath);
-  if (!(file instanceof import_obsidian38.TFile)) {
+  if (!(file instanceof import_obsidian34.TFile)) {
     return;
   }
   const cache = plugin.app.metadataCache.getFileCache(file);
@@ -24242,8 +23255,8 @@ function renderFrontmatterPlayer(plugin, element, context) {
 }
 
 // src/Infrastructure/Obsidian/Views/Modals/SpotifyModal.ts
-var import_obsidian39 = require("obsidian");
-var SpotifyModal = class extends import_obsidian39.Modal {
+var import_obsidian35 = require("obsidian");
+var SpotifyModal = class extends import_obsidian35.Modal {
   constructor(app, musicService) {
     super(app);
     this.musicService = musicService;
@@ -24253,14 +23266,14 @@ var SpotifyModal = class extends import_obsidian39.Modal {
     contentEl.empty();
     contentEl.createEl("h2", { text: "Search Spotify Track" });
     let searchQuery = "";
-    new import_obsidian39.Setting(contentEl).setName("Search Query").setDesc("Enter song name").addText((text) => text.setPlaceholder("Bohemian Rhapsody").onChange((value) => {
+    new import_obsidian35.Setting(contentEl).setName("Search Query").setDesc("Enter song name").addText((text) => text.setPlaceholder("Bohemian Rhapsody").onChange((value) => {
       searchQuery = value;
     }).inputEl.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         this.performSearch(searchQuery, contentEl);
       }
     }));
-    new import_obsidian39.Setting(contentEl).addButton((btn) => btn.setButtonText("Search").setCta().onClick(() => {
+    new import_obsidian35.Setting(contentEl).addButton((btn) => btn.setButtonText("Search").setCta().onClick(() => {
       this.performSearch(searchQuery, contentEl);
     }));
     contentEl.createDiv({ cls: "spotify-results-container" });
@@ -24321,90 +23334,15 @@ var SpotifyModal = class extends import_obsidian39.Modal {
   }
 };
 
-// src/Infrastructure/Obsidian/Views/Renderers/GoogleMapsRenderer.ts
-var import_obsidian40 = require("obsidian");
-var import_core22 = __toESM(require_dist());
-function registerGoogleMapsRenderer(plugin) {
-  console.log("[GoogleMapsRenderer] Registering markdown post processor");
-  plugin.registerMarkdownPostProcessor((element, context) => {
-    var _a2, _b;
-    const file = plugin.app.vault.getAbstractFileByPath(context.sourcePath);
-    if (!(file instanceof import_obsidian40.TFile)) {
-      return;
-    }
-    const cache = plugin.app.metadataCache.getFileCache(file);
-    const frontmatter = cache == null ? void 0 : cache.frontmatter;
-    if (!frontmatter) {
-      return;
-    }
-    const getFrontmatterValue = (key) => {
-      const entry = Object.entries(frontmatter).find(([k]) => k.toLowerCase() === key.toLowerCase());
-      return entry ? entry[1] : void 0;
-    };
-    let placeId = getFrontmatterValue(import_core22.FrontmatterKeys.LugarId);
-    if (placeId && typeof placeId === "string") {
-      const normalizedId = placeId.trim();
-      if (normalizedId.startsWith("google-maps-id:")) {
-        placeId = normalizedId.replace("google-maps-id:", "").trim();
-      } else {
-        placeId = null;
-      }
-    } else {
-      placeId = null;
-    }
-    const lat = getFrontmatterValue(import_core22.FrontmatterKeys.Latitud);
-    const lng = getFrontmatterValue(import_core22.FrontmatterKeys.Longitud);
-    if (!placeId && (!lat || !lng)) {
-      return;
-    }
-    if (element.querySelector(".elo-google-maps-container")) {
-      return;
-    }
-    const sectionInfo = context.getSectionInfo(element);
-    if (!sectionInfo)
-      return;
-    const frontmatterEndLine = (_b = (_a2 = frontmatter.position) == null ? void 0 : _a2.end.line) != null ? _b : -1;
-    const currentLine = sectionInfo.lineStart;
-    if (currentLine > frontmatterEndLine + 5) {
-      return;
-    }
-    console.log("[GoogleMapsRenderer] Rendering map for:", file.basename);
-    const container = element.createDiv({ cls: "elo-google-maps-container" });
-    container.style.marginTop = "10px";
-    container.style.marginBottom = "10px";
-    container.style.width = "100%";
-    const apiKey = plugin.settings.googleMapsEmbedAPIKey;
-    if (!apiKey) {
-      container.createEl("div", { text: 'Google Maps Map API Key missing in settings. Please verify "Google Maps Map API Key" is set.' });
-      return;
-    }
-    const iframe = container.createEl("iframe");
-    iframe.width = "100%";
-    iframe.height = "450";
-    iframe.style.border = "0";
-    iframe.allow = "fullscreen";
-    iframe.setAttribute("loading", "lazy");
-    iframe.setAttribute("referrerpolicy", "no-referrer-when-downgrade");
-    let src = "";
-    if (placeId) {
-      src = `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=place_id:${placeId}`;
-    } else if (lat && lng) {
-      src = `https://www.google.com/maps/embed/v1/view?key=${apiKey}&center=${lat},${lng}&zoom=14`;
-      src = `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${lat},${lng}`;
-    }
-    iframe.src = src;
-  });
-}
-
 // src/Infrastructure/Obsidian/Views/Renderers/ImageGalleryRenderer.ts
-var import_obsidian41 = require("obsidian");
-var import_core23 = __toESM(require_dist());
+var import_obsidian36 = require("obsidian");
+var import_core16 = __toESM(require_dist());
 function registerImageGalleryRenderer(plugin) {
   console.log("[ImageGalleryRenderer] Registering markdown post processor");
   plugin.registerMarkdownPostProcessor((element, context) => {
     var _a2, _b;
     const file = plugin.app.vault.getAbstractFileByPath(context.sourcePath);
-    if (!(file instanceof import_obsidian41.TFile)) {
+    if (!(file instanceof import_obsidian36.TFile)) {
       return;
     }
     const cache = plugin.app.metadataCache.getFileCache(file);
@@ -24412,7 +23350,7 @@ function registerImageGalleryRenderer(plugin) {
     if (!frontmatter) {
       return;
     }
-    const imagesRaw = frontmatter[import_core23.FrontmatterKeys.EloImages] || [];
+    const imagesRaw = frontmatter[import_core16.FrontmatterKeys.EloImages] || [];
     const allImages = [];
     if (Array.isArray(imagesRaw)) {
       const regex = /elo-bridge:\/\/id=([^&]+)/;
@@ -24479,8 +23417,8 @@ function registerImageGalleryRenderer(plugin) {
 }
 
 // src/Infrastructure/Obsidian/Views/Modals/SpotifyAuthModal.ts
-var import_obsidian42 = require("obsidian");
-var SpotifyAuthModal = class extends import_obsidian42.Modal {
+var import_obsidian37 = require("obsidian");
+var SpotifyAuthModal = class extends import_obsidian37.Modal {
   constructor(app, musicService) {
     super(app);
     this.musicService = musicService;
@@ -24493,7 +23431,7 @@ var SpotifyAuthModal = class extends import_obsidian42.Modal {
     const step1 = contentEl.createDiv({ cls: "step-1" });
     step1.createEl("h3", { text: "Step 1: Authorize" });
     step1.createEl("p", { text: "Click the button below to open the validation page. You will be redirected to Google. Copy the URL from the address bar after the redirect." });
-    new import_obsidian42.Setting(step1).addButton((btn) => btn.setButtonText("Connect Spotify").setCta().onClick(async () => {
+    new import_obsidian37.Setting(step1).addButton((btn) => btn.setButtonText("Connect Spotify").setCta().onClick(async () => {
       btn.setDisabled(true);
       btn.setButtonText("Opening Browser...");
       const redirectUri = "https://google.com";
@@ -24514,7 +23452,7 @@ var SpotifyAuthModal = class extends import_obsidian42.Modal {
     const step2 = contentEl.createDiv({ cls: "step-2" });
     step2.createEl("h3", { text: "Step 2: Enter Code" });
     let code = "";
-    new import_obsidian42.Setting(step2).setName("Authorization Code").setDesc("Paste the code or the full redirect URL here.").addText((text) => text.setPlaceholder("Paste code or URL...").onChange((value) => {
+    new import_obsidian37.Setting(step2).setName("Authorization Code").setDesc("Paste the code or the full redirect URL here.").addText((text) => text.setPlaceholder("Paste code or URL...").onChange((value) => {
       code = value.trim();
       try {
         if (code.includes("code=")) {
@@ -24527,7 +23465,7 @@ var SpotifyAuthModal = class extends import_obsidian42.Modal {
       } catch (e) {
       }
     }));
-    new import_obsidian42.Setting(contentEl).addButton((btn) => btn.setButtonText("Verify & Connect").setCta().onClick(async () => {
+    new import_obsidian37.Setting(contentEl).addButton((btn) => btn.setButtonText("Verify & Connect").setCta().onClick(async () => {
       if (!code) {
         showMessage("Please enter the code.");
         return;
@@ -24554,10 +23492,10 @@ var SpotifyAuthModal = class extends import_obsidian42.Modal {
 };
 
 // src/Infrastructure/Obsidian/Views/Chat/ChatView.ts
-var import_obsidian52 = require("obsidian");
+var import_obsidian47 = require("obsidian");
 
 // src/Infrastructure/Adapters/ObsidianRoleRepository.ts
-var import_obsidian43 = require("obsidian");
+var import_obsidian38 = require("obsidian");
 var ObsidianRoleRepository = class {
   constructor(app, settings) {
     this.app = app;
@@ -24569,12 +23507,12 @@ var ObsidianRoleRepository = class {
     if (!folderPath)
       return [];
     const folder = this.app.vault.getAbstractFileByPath(folderPath);
-    if (!folder || !(folder instanceof import_obsidian43.TFolder)) {
+    if (!folder || !(folder instanceof import_obsidian38.TFolder)) {
       return [];
     }
     const roles = [];
     for (const child of folder.children) {
-      if (child instanceof import_obsidian43.TFile && child.extension === "md") {
+      if (child instanceof import_obsidian38.TFile && child.extension === "md") {
         const cache = this.app.metadataCache.getFileCache(child);
         const prompt = (_a2 = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _a2["!!prompt"];
         const evaluationPrompt = (_b = cache == null ? void 0 : cache.frontmatter) == null ? void 0 : _b["!!evaluationPrompt"];
@@ -25158,10 +24096,10 @@ ${content}` }]
 };
 
 // src/Infrastructure/Obsidian/Views/Chat/ChatView.ts
-var import_core28 = __toESM(require_dist());
+var import_core21 = __toESM(require_dist());
 
 // src/Infrastructure/Services/SessionLogger.ts
-var import_obsidian44 = require("obsidian");
+var import_obsidian39 = require("obsidian");
 var SessionLogger = class {
   constructor(app) {
     this.logFolderPath = "!!metadatos/Sesiones";
@@ -25177,7 +24115,7 @@ var SessionLogger = class {
         return null;
       }
     }
-    if (!(folder instanceof import_obsidian44.TFolder)) {
+    if (!(folder instanceof import_obsidian39.TFolder)) {
       console.error("Log path exists but is not a folder");
       return null;
     }
@@ -25193,7 +24131,7 @@ var SessionLogger = class {
         return null;
       }
     }
-    return file instanceof import_obsidian44.TFile ? file : null;
+    return file instanceof import_obsidian39.TFile ? file : null;
   }
   formatTime(date) {
     return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
@@ -25229,7 +24167,7 @@ var SessionLogger = class {
 };
 
 // src/Application/Services/HeaderEvaluationService.ts
-var import_core24 = __toESM(require_dist());
+var import_core17 = __toESM(require_dist());
 var HeaderEvaluationService = class {
   constructor(llm, noteManager) {
     this.llm = llm;
@@ -25265,8 +24203,8 @@ RETURN JSON ONLY: { "difficulty": 1-3, "importance": 1-5 }`;
           let blockId = idMatch ? idMatch[1] : null;
           if (blockId) {
             await this.noteManager.updateBlockMetadata(notePath, blockId, {
-              [import_core24.HeaderMetadataKeys.Difficulty]: result.difficulty,
-              [import_core24.HeaderMetadataKeys.Importance]: result.importance
+              [import_core17.HeaderMetadataKeys.Difficulty]: result.difficulty,
+              [import_core17.HeaderMetadataKeys.Importance]: result.importance
             });
             processedCount++;
           } else {
@@ -25281,7 +24219,7 @@ RETURN JSON ONLY: { "difficulty": 1-3, "importance": 1-5 }`;
 };
 
 // src/Application/Services/RolesService.ts
-var import_core25 = __toESM(require_dist());
+var import_core18 = __toESM(require_dist());
 var RolesService = class {
   constructor(repository) {
     this.repository = repository;
@@ -25292,7 +24230,7 @@ var RolesService = class {
 };
 
 // src/Infrastructure/Services/ContextService.ts
-var import_obsidian45 = require("obsidian");
+var import_obsidian40 = require("obsidian");
 var ContextService = class {
   constructor(app) {
     this.app = app;
@@ -25325,7 +24263,7 @@ var ContextService = class {
   }
   async getLinkedFileContent(path5, range) {
     const sourceFile = this.app.vault.getAbstractFileByPath(path5);
-    if (!(sourceFile instanceof import_obsidian45.TFile))
+    if (!(sourceFile instanceof import_obsidian40.TFile))
       return "";
     const cache = this.app.metadataCache.getFileCache(sourceFile);
     if (!cache)
@@ -25361,7 +24299,7 @@ var ContextService = class {
         linkPathPart = fullLinkPath.substring(0, caretIndex);
       }
       const linkFile = this.app.metadataCache.getFirstLinkpathDest(linkPathPart, sourceFile.path);
-      if (linkFile instanceof import_obsidian45.TFile && linkFile.extension === "md") {
+      if (linkFile instanceof import_obsidian40.TFile && linkFile.extension === "md") {
         const uniqueKey = linkFile.path + (headerName ? `:${headerName}` : "");
         if (!processedFiles.has(uniqueKey)) {
           processedFiles.add(uniqueKey);
@@ -25405,7 +24343,7 @@ ${this.cleanContext(content)}`;
       if (!file) {
         file = this.app.vault.getFiles().find((f) => f.basename === cleanItem) || null;
       }
-      if (file && file instanceof import_obsidian45.TFile && file.extension === "md") {
+      if (file && file instanceof import_obsidian40.TFile && file.extension === "md") {
         try {
           const content = await this.app.vault.read(file);
           vocabContext += `
@@ -25425,8 +24363,8 @@ ${content}
 };
 
 // src/Application/Services/QuizService.ts
-var import_core26 = __toESM(require_dist());
-var import_core27 = __toESM(require_dist());
+var import_core19 = __toESM(require_dist());
+var import_core20 = __toESM(require_dist());
 var QuizService = class {
   constructor(noteManager, contextProvider, metadataService) {
     this.noteManager = noteManager;
@@ -25453,8 +24391,8 @@ var QuizService = class {
       finalScore = Math.round(finalScore * 10) / 10;
     }
     await this.metadataService.updateBlockMetadata(activeFile.path, item.blockId, {
-      [import_core27.HeaderMetadataKeys.Score]: finalScore,
-      [import_core27.HeaderMetadataKeys.Attempts]: oldAttempts + 1
+      [import_core20.HeaderMetadataKeys.Score]: finalScore,
+      [import_core20.HeaderMetadataKeys.Attempts]: oldAttempts + 1
     });
     return finalScore;
   }
@@ -25509,7 +24447,7 @@ ${sectionLinkedContent}` : ""}`;
         } else {
           if (blockId && metadata[blockId]) {
             const importance = metadata[blockId].importance;
-            if (typeof importance === "number" && (0, import_core26.normalizeImportance)(importance) >= requiredLevel) {
+            if (typeof importance === "number" && (0, import_core19.normalizeImportance)(importance) >= requiredLevel) {
               shouldInclude = true;
             }
           }
@@ -25582,7 +24520,7 @@ ${sectionLinkedContent}` : ""}`;
 };
 
 // src/Infrastructure/Obsidian/Views/Chat/Components/RolesComponent.ts
-var import_obsidian46 = require("obsidian");
+var import_obsidian41 = require("obsidian");
 var RolesComponent = class {
   constructor(container) {
     this.container = container;
@@ -25608,7 +24546,7 @@ var RolesComponent = class {
     if (props.roles.length === 0) {
       roleRow.createSpan({ text: "(No roles found in folder)", cls: "gemini-muted-text" });
     } else {
-      const dropdown = new import_obsidian46.DropdownComponent(roleRow);
+      const dropdown = new import_obsidian41.DropdownComponent(roleRow);
       props.roles.forEach((role) => dropdown.addOption(role.prompt, role.name));
       dropdown.setValue(props.selectedRolePrompt);
       dropdown.onChange((val) => props.onRoleChange(val));
@@ -25622,7 +24560,7 @@ var RolesComponent = class {
     aiModeRow.style.alignItems = "center";
     aiModeRow.style.gap = "10px";
     aiModeRow.createSpan({ text: "IA:" });
-    const aiDropdown = new import_obsidian46.DropdownComponent(aiModeRow);
+    const aiDropdown = new import_obsidian41.DropdownComponent(aiModeRow);
     aiDropdown.addOption("gemini_live_voice_text", "Voz live y texto");
     aiDropdown.addOption("gemini_live_voice_only", "Voz live");
     aiDropdown.addOption("local_voice_text", "Voz y texto");
@@ -25635,7 +24573,7 @@ var RolesComponent = class {
     userModeRow.style.alignItems = "center";
     userModeRow.style.gap = "10px";
     userModeRow.createSpan({ text: "Usuario:" });
-    const userDropdown = new import_obsidian46.DropdownComponent(userModeRow);
+    const userDropdown = new import_obsidian41.DropdownComponent(userModeRow);
     userDropdown.addOption("voice_text", "Voz y Texto");
     userDropdown.addOption("text_only", "Solo Texto");
     userDropdown.addOption("voice_only", "Solo Voz");
@@ -25647,7 +24585,7 @@ var RolesComponent = class {
       localVoiceRow.style.alignItems = "center";
       localVoiceRow.style.gap = "10px";
       localVoiceRow.createSpan({ text: "Voz Local:" });
-      this.localVoiceDropdownRef = new import_obsidian46.DropdownComponent(localVoiceRow);
+      this.localVoiceDropdownRef = new import_obsidian41.DropdownComponent(localVoiceRow);
       const loadVoices = () => {
         var _a2;
         const voices = window.speechSynthesis.getVoices();
@@ -25685,7 +24623,7 @@ var RolesComponent = class {
     configRow.style.flexWrap = "wrap";
     if (props.liveMode.startsWith("gemini_live")) {
       configRow.createSpan({ text: "Voz (Gemini):" });
-      this.voiceDropdownRef = new import_obsidian46.DropdownComponent(configRow);
+      this.voiceDropdownRef = new import_obsidian41.DropdownComponent(configRow);
       ["Puck", "Charon", "Kore", "Fenrir", "Aoede"].forEach((voice) => {
         this.voiceDropdownRef.addOption(voice, voice);
       });
@@ -25759,17 +24697,17 @@ var RolesComponent = class {
       const buttonContainer = content.createDiv();
       buttonContainer.style.display = "flex";
       buttonContainer.style.gap = "10px";
-      new import_obsidian46.ButtonComponent(buttonContainer).setButtonText("Eval Headers").setTooltip("Batchevaluation of headers").onClick(() => props.onEvalHeaders());
-      new import_obsidian46.ButtonComponent(buttonContainer).setButtonText("Generate Header Metadata").setTooltip("Assign Block IDs and create metadata structure for headers").onClick(() => props.onGenerateMetadata());
+      new import_obsidian41.ButtonComponent(buttonContainer).setButtonText("Eval Headers").setTooltip("Batchevaluation of headers").onClick(() => props.onEvalHeaders());
+      new import_obsidian41.ButtonComponent(buttonContainer).setButtonText("Generate Header Metadata").setTooltip("Assign Block IDs and create metadata structure for headers").onClick(() => props.onGenerateMetadata());
     }
   }
 };
 
 // src/Infrastructure/Obsidian/Views/Chat/Components/QuizComponent.ts
-var import_obsidian48 = require("obsidian");
+var import_obsidian43 = require("obsidian");
 
 // src/Infrastructure/Obsidian/Views/Chat/Components/SessionControlsComponent.ts
-var import_obsidian47 = require("obsidian");
+var import_obsidian42 = require("obsidian");
 var SessionControlsComponent = class {
   constructor(sessionBtnContainer, onStartStop) {
     this.sessionBtnContainer = sessionBtnContainer;
@@ -25778,7 +24716,7 @@ var SessionControlsComponent = class {
     this.render();
   }
   render() {
-    this.sessionBtn = new import_obsidian47.ButtonComponent(this.sessionBtnContainer).setButtonText("Preguntar").setCta().onClick(() => this.onStartStop());
+    this.sessionBtn = new import_obsidian42.ButtonComponent(this.sessionBtnContainer).setButtonText("Preguntar").setCta().onClick(() => this.onStartStop());
   }
   updateStatus(isActive, text = "", color = "") {
     if (this.sessionBtn) {
@@ -25825,7 +24763,7 @@ var QuizComponent = class {
     quizControls.style.flexWrap = "wrap";
     quizControls.style.marginBottom = "15px";
     quizControls.createSpan({ text: "Relevancia:" });
-    const importanceDropdown = new import_obsidian48.DropdownComponent(quizControls);
+    const importanceDropdown = new import_obsidian43.DropdownComponent(quizControls);
     importanceDropdown.addOption("0", "(Sin filtro)");
     ["1", "2", "3", "4", "5"].forEach((level) => importanceDropdown.addOption(level, `\u2B50`.repeat(Number(level))));
     importanceDropdown.setValue(props.quizService.selectedStarLevel);
@@ -25846,7 +24784,7 @@ var QuizComponent = class {
     filterLabel.innerText = "Solo t\xEDtulos sin subt\xEDtulos";
     filterContainer.appendChild(filterCheckbox);
     filterContainer.appendChild(filterLabel);
-    const refreshBtn = new import_obsidian48.ButtonComponent(quizControls);
+    const refreshBtn = new import_obsidian43.ButtonComponent(quizControls);
     refreshBtn.setIcon("refresh-cw");
     refreshBtn.setTooltip("Refrescar Datos");
     refreshBtn.onClick(() => props.onRefresh());
@@ -25941,7 +24879,7 @@ var QuizComponent = class {
 };
 
 // src/Infrastructure/Obsidian/Views/Chat/Components/TranscriptComponent.ts
-var import_obsidian49 = require("obsidian");
+var import_obsidian44 = require("obsidian");
 var TranscriptComponent = class {
   constructor(container, app, component) {
     this.fullTranscript = "";
@@ -25985,7 +24923,7 @@ var TranscriptComponent = class {
     this.currentAiMessageText += text;
     this.fullTranscript += text;
     this.currentAiMessageEl.empty();
-    await import_obsidian49.MarkdownRenderer.render(
+    await import_obsidian44.MarkdownRenderer.render(
       this.app,
       this.currentAiMessageText,
       this.currentAiMessageEl,
@@ -26131,7 +25069,7 @@ var VocabularyComponent = class {
 };
 
 // src/Infrastructure/Obsidian/Views/Chat/Components/ChatInputComponent.ts
-var import_obsidian51 = require("obsidian");
+var import_obsidian46 = require("obsidian");
 
 // src/Infrastructure/Obsidian/Utils/AudioRecorder.ts
 var AudioRecorder2 = class {
@@ -26185,7 +25123,7 @@ var AudioRecorder2 = class {
 };
 
 // src/Infrastructure/Adapters/GeminiTranscriptionAdapter.ts
-var import_obsidian50 = require("obsidian");
+var import_obsidian45 = require("obsidian");
 var GeminiTranscriptionAdapter = class {
   constructor(apiKey) {
     this.modelName = "gemini-2.0-flash-exp";
@@ -26199,7 +25137,7 @@ var GeminiTranscriptionAdapter = class {
     const base64Data = await this.blobToBase64(audioBlob);
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelName}:generateContent?key=${this.apiKey}`;
     try {
-      const response = await (0, import_obsidian50.requestUrl)({
+      const response = await (0, import_obsidian45.requestUrl)({
         url,
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -26267,7 +25205,7 @@ var ChatInputComponent = class {
     wrapper.style.alignItems = "center";
     const showText = userMode === "voice_text" || userMode === "text_only";
     const showMic = userMode === "voice_text" || userMode === "voice_only";
-    this.inputEl = new import_obsidian51.TextComponent(wrapper);
+    this.inputEl = new import_obsidian46.TextComponent(wrapper);
     this.inputEl.setPlaceholder("Escribe tu respuesta...");
     this.inputEl.inputEl.style.flex = "1";
     this.inputEl.setDisabled(!isEnabled);
@@ -26279,7 +25217,7 @@ var ChatInputComponent = class {
         this.sendMessage();
       }
     });
-    this.micButton = new import_obsidian51.ButtonComponent(wrapper);
+    this.micButton = new import_obsidian46.ButtonComponent(wrapper);
     this.micButton.setIcon("microphone");
     this.micButton.setTooltip("Hablar para escribir");
     this.micButton.setDisabled(!isEnabled);
@@ -26290,7 +25228,7 @@ var ChatInputComponent = class {
     if (!showMic) {
       this.micButton.buttonEl.style.display = "none";
     }
-    const sendBtn = new import_obsidian51.ButtonComponent(wrapper);
+    const sendBtn = new import_obsidian46.ButtonComponent(wrapper);
     sendBtn.setIcon("send");
     sendBtn.setTooltip("Enviar");
     sendBtn.setDisabled(!isEnabled);
@@ -26375,7 +25313,7 @@ var ChatInputComponent = class {
 
 // src/Infrastructure/Obsidian/Views/Chat/ChatView.ts
 var VIEW_TYPE_CHAT = "gemini-live-session-view";
-var ChatView = class extends import_obsidian52.ItemView {
+var ChatView = class extends import_obsidian47.ItemView {
   // =========================================================================================
   // Lifecycle
   // =========================================================================================
@@ -26458,7 +25396,7 @@ var ChatView = class extends import_obsidian52.ItemView {
       var _a2;
       if (leaf) {
         if (leaf.view.getViewType() === VIEW_TYPE_CHAT && leaf.view === this) {
-        } else if (leaf.view instanceof import_obsidian52.MarkdownView) {
+        } else if (leaf.view instanceof import_obsidian47.MarkdownView) {
           await this.quizService.buildQuizQueue();
           (_a2 = this.quizComponent) == null ? void 0 : _a2.refreshList(this.quizService, (i) => this.onQuizSelect(i));
         }
@@ -26691,7 +25629,7 @@ var ChatView = class extends import_obsidian52.ItemView {
     }
     console.log(`LiveSessionView: Instantiating adapter (Mode: ${this.liveMode})...`);
     if (this.liveMode === "text_only" || this.liveMode === "local_voice_text" || this.liveMode === "local_voice_only") {
-      this.adapter = new import_core28.GoogleGeminiChatAdapter(
+      this.adapter = new import_core21.GoogleGeminiChatAdapter(
         this.apiKey,
         (text) => this.onAiAudioData(text),
         // Reuse text handler (it appends to transcript)
@@ -26973,9 +25911,9 @@ ${vocabContext}`;
 };
 
 // src/Infrastructure/Obsidian/Views/NoteOperations/NoteOperationsView.ts
-var import_obsidian53 = require("obsidian");
+var import_obsidian48 = require("obsidian");
 var VIEW_TYPE_NOTE_OPERATIONS = "note-operations-view";
-var NoteOperationsView = class extends import_obsidian53.ItemView {
+var NoteOperationsView = class extends import_obsidian48.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.selectedCommandId = "";
@@ -27009,7 +25947,7 @@ var NoteOperationsView = class extends import_obsidian53.ItemView {
     controlsContainer.style.display = "flex";
     controlsContainer.style.flexDirection = "column";
     controlsContainer.style.gap = "10px";
-    const dropdown = new import_obsidian53.DropdownComponent(controlsContainer);
+    const dropdown = new import_obsidian48.DropdownComponent(controlsContainer);
     const commands = this.plugin.getNoteCommands();
     if (commands.length > 0) {
       this.selectedCommandId = commands[0].id;
@@ -27021,7 +25959,7 @@ var NoteOperationsView = class extends import_obsidian53.ItemView {
       this.selectedCommandId = value;
     });
     dropdown.selectEl.style.width = "100%";
-    this.executeButton = new import_obsidian53.ButtonComponent(controlsContainer);
+    this.executeButton = new import_obsidian48.ButtonComponent(controlsContainer);
     this.executeButton.setButtonText("Ejecutar Command").setCta().onClick(() => {
       this.executeSelectedCommand();
     });
@@ -27030,7 +25968,7 @@ var NoteOperationsView = class extends import_obsidian53.ItemView {
     micContainer.style.display = "flex";
     micContainer.style.justifyContent = "center";
     micContainer.style.marginTop = "20px";
-    this.micButton = new import_obsidian53.ButtonComponent(micContainer);
+    this.micButton = new import_obsidian48.ButtonComponent(micContainer);
     this.micButton.setIcon("microphone");
     this.micButton.setTooltip("Mant\xE9n pulsado para hablar");
     this.micButton.buttonEl.style.width = "60px";
@@ -27061,11 +25999,11 @@ var NoteOperationsView = class extends import_obsidian53.ItemView {
     const bridgeControls = bridgeContainer.createDiv();
     bridgeControls.style.display = "flex";
     bridgeControls.style.gap = "10px";
-    const startBtn = new import_obsidian53.ButtonComponent(bridgeControls).setButtonText("Iniciar Bridge").onClick(() => {
+    const startBtn = new import_obsidian48.ButtonComponent(bridgeControls).setButtonText("Iniciar Bridge").onClick(() => {
       this.plugin.bridgeService.startBridge(true);
       this.updateBridgeStatus(statusIndicator);
     });
-    const stopBtn = new import_obsidian53.ButtonComponent(bridgeControls).setButtonText("Detener Bridge").setWarning().onClick(() => {
+    const stopBtn = new import_obsidian48.ButtonComponent(bridgeControls).setButtonText("Detener Bridge").setWarning().onClick(() => {
       this.plugin.bridgeService.stopBridge();
       this.updateBridgeStatus(statusIndicator);
     });
@@ -27208,7 +26146,7 @@ var NoteOperationsView = class extends import_obsidian53.ItemView {
 };
 
 // src/Infrastructure/Adapters/SpotifyAdapter/SpotifyAdapter.ts
-var import_obsidian54 = require("obsidian");
+var import_obsidian49 = require("obsidian");
 var SpotifyAdapter = class {
   constructor(clientId, accessToken, refreshToken = "", tokenExpirationTime = 0, onTokenRefreshed = async () => {
   }, onAuthNeeded = () => {
@@ -27244,7 +26182,7 @@ var SpotifyAdapter = class {
       refresh_token: this.refreshToken
     });
     try {
-      const response = await (0, import_obsidian54.requestUrl)({
+      const response = await (0, import_obsidian49.requestUrl)({
         url: "https://accounts.spotify.com/api/token",
         method: "POST",
         headers: {
@@ -27293,7 +26231,7 @@ var SpotifyAdapter = class {
       redirect_uri: redirectUri,
       code_verifier: verifier
     });
-    const response = await (0, import_obsidian54.requestUrl)({
+    const response = await (0, import_obsidian49.requestUrl)({
       url: "https://accounts.spotify.com/api/token",
       method: "POST",
       headers: {
@@ -27351,7 +26289,7 @@ var SpotifyAdapter = class {
       params.body = JSON.stringify(body);
     }
     try {
-      const response = await (0, import_obsidian54.requestUrl)(params);
+      const response = await (0, import_obsidian49.requestUrl)(params);
       if (response.status >= 200 && response.status < 300) {
         return response.json;
       } else {
@@ -27461,10 +26399,10 @@ var MusicService = class {
 };
 
 // src/Infrastructure/Obsidian/main.ts
-var import_core34 = __toESM(require_dist());
+var import_core27 = __toESM(require_dist());
 
 // src/Infrastructure/Obsidian/MarkdownPostProcessors/HeaderProgressRenderer.ts
-var import_obsidian55 = require("obsidian");
+var import_obsidian50 = require("obsidian");
 var lastWarningTime = {};
 var createHeaderProgressRenderer = (app, service) => {
   return async (el, ctx) => {
@@ -27476,7 +26414,7 @@ var createHeaderProgressRenderer = (app, service) => {
     if (Object.keys(progressMap).length === 0)
       return;
     const file = app.vault.getAbstractFileByPath(sourcePath);
-    if (file instanceof import_obsidian55.TFile) {
+    if (file instanceof import_obsidian50.TFile) {
       const cache = app.metadataCache.getFileCache(file);
       const headings = ((_a2 = cache == null ? void 0 : cache.headings) == null ? void 0 : _a2.map((h) => h.heading)) || [];
       const missingKeys = service.findMissingHeaders(progressMap, headings);
@@ -27518,9 +26456,9 @@ ${missingKeys.join("\n")}`);
 };
 
 // src/Infrastructure/Obsidian/MarkdownPostProcessors/HeaderMetadataRenderer.ts
-var import_obsidian56 = require("obsidian");
-var import_core29 = __toESM(require_dist());
-var import_core30 = __toESM(require_dist());
+var import_obsidian51 = require("obsidian");
+var import_core22 = __toESM(require_dist());
+var import_core23 = __toESM(require_dist());
 var createHeaderMetadataRenderer = (app, service) => {
   return async (el, ctx) => {
     const sourcePath = ctx.sourcePath;
@@ -27538,7 +26476,7 @@ var createHeaderMetadataRenderer = (app, service) => {
         const startLine = sectionInfo.lineStart;
         const endLine = sectionInfo.lineEnd;
         const file2 = app.vault.getAbstractFileByPath(sourcePath);
-        if (file2 instanceof import_obsidian56.TFile) {
+        if (file2 instanceof import_obsidian51.TFile) {
           const cache = app.metadataCache.getFileCache(file2);
           const headingCache = (_a2 = cache == null ? void 0 : cache.headings) == null ? void 0 : _a2.find((h) => {
             return h.position.start.line === startLine;
@@ -27548,7 +26486,7 @@ var createHeaderMetadataRenderer = (app, service) => {
         }
       }
       const file = app.vault.getAbstractFileByPath(sourcePath);
-      if (file instanceof import_obsidian56.TFile && sectionInfo) {
+      if (file instanceof import_obsidian51.TFile && sectionInfo) {
         const cache = app.metadataCache.getFileCache(file);
         const line = sectionInfo.lineStart;
         if (cache == null ? void 0 : cache.blocks) {
@@ -27571,9 +26509,9 @@ function renderMetadataPill(container, data) {
   if (container.querySelector(".header-metadata-container"))
     return;
   container.style.position = "relative";
-  const score = typeof data[import_core29.HeaderMetadataKeys.Score] === "number" ? data[import_core29.HeaderMetadataKeys.Score] : 0;
-  const importance = typeof data[import_core29.HeaderMetadataKeys.Importance] === "number" ? data[import_core29.HeaderMetadataKeys.Importance] : 1;
-  const difficulty = typeof data[import_core29.HeaderMetadataKeys.Difficulty] === "number" ? data[import_core29.HeaderMetadataKeys.Difficulty] : 0;
+  const score = typeof data[import_core22.HeaderMetadataKeys.Score] === "number" ? data[import_core22.HeaderMetadataKeys.Score] : 0;
+  const importance = typeof data[import_core22.HeaderMetadataKeys.Importance] === "number" ? data[import_core22.HeaderMetadataKeys.Importance] : 1;
+  const difficulty = typeof data[import_core22.HeaderMetadataKeys.Difficulty] === "number" ? data[import_core22.HeaderMetadataKeys.Difficulty] : 0;
   const pill = document.createElement("span");
   pill.addClass("header-metadata-container");
   let stars = Math.max(1, Math.min(5, Math.round(importance)));
@@ -27586,8 +26524,8 @@ function renderMetadataPill(container, data) {
   impEl.style.textShadow = "0 0 1px #b8860b";
   impEl.title = `Importancia: ${importance}/5`;
   pill.appendChild(impEl);
-  const normDiff = (0, import_core30.normalizeDifficulty)(difficulty);
-  const diffColor = (0, import_core30.difficultyToColor)(normDiff);
+  const normDiff = (0, import_core23.normalizeDifficulty)(difficulty);
+  const diffColor = (0, import_core23.difficultyToColor)(normDiff);
   let diffText = "Baja";
   if (normDiff === 2)
     diffText = "Media";
@@ -27626,7 +26564,7 @@ function renderMetadataPill(container, data) {
         <text x="50%" y="54%" text-anchor="middle" dy="0.3em" fill="var(--text-normal)"
             font-size="9" font-weight="bold" transform="rotate(90 ${center} ${center})">${Math.round(score)}</text>
     </svg>`;
-  const attempts = typeof data[import_core29.HeaderMetadataKeys.Attempts] === "number" ? data[import_core29.HeaderMetadataKeys.Attempts] : 0;
+  const attempts = typeof data[import_core22.HeaderMetadataKeys.Attempts] === "number" ? data[import_core22.HeaderMetadataKeys.Attempts] : 0;
   const attemptsEl = document.createElement("span");
   attemptsEl.addClass("hm-item");
   attemptsEl.style.textAlign = "right";
@@ -27731,8 +26669,8 @@ var ImageEnricherService = class {
 };
 
 // src/Infrastructure/Obsidian/Services/FrontmatterEventService.ts
-var import_obsidian57 = require("obsidian");
-var import_core31 = __toESM(require_dist());
+var import_obsidian52 = require("obsidian");
+var import_core24 = __toESM(require_dist());
 var FrontmatterEventService = class {
   constructor(app) {
     this.previousFrontmatter = {};
@@ -27757,8 +26695,8 @@ var FrontmatterEventService = class {
       return;
     }
     const previous = this.previousFrontmatter[filePath];
-    for (const key of Object.keys(import_core31.FrontmatterRegistry)) {
-      const fieldConfig = import_core31.FrontmatterRegistry[key];
+    for (const key of Object.keys(import_core24.FrontmatterRegistry)) {
+      const fieldConfig = import_core24.FrontmatterRegistry[key];
       if (!fieldConfig.commands || fieldConfig.commands.length === 0)
         continue;
       const currentValue = currentFrontmatter[fieldConfig.key];
@@ -27783,7 +26721,7 @@ var FrontmatterEventService = class {
         if (command.callback) {
           await command.callback();
         } else if (command.editorCallback) {
-          const activeView = this.app.workspace.getActiveViewOfType(import_obsidian57.MarkdownView);
+          const activeView = this.app.workspace.getActiveViewOfType(import_obsidian52.MarkdownView);
           if (activeView) {
             await command.editorCallback(activeView.editor, activeView);
           } else {
@@ -27904,7 +26842,7 @@ var BridgeService = class {
 };
 
 // src/Infrastructure/Obsidian/main.ts
-var ObsidianExtension = class extends import_obsidian58.Plugin {
+var ObsidianExtension = class extends import_obsidian53.Plugin {
   constructor() {
     super(...arguments);
     this.settings = DEFAULT_SETTINGS;
@@ -27916,7 +26854,7 @@ var ObsidianExtension = class extends import_obsidian58.Plugin {
     return this.lastActiveMarkdownFile;
   }
   async onload() {
-    var _a2, _b, _c, _d, _e;
+    var _a2, _b, _c, _d;
     console.log(`Elocuency plugin loaded ${this.manifest.version}`);
     const activeFile = this.app.workspace.getActiveFile();
     if (activeFile && activeFile.extension === "md") {
@@ -27924,21 +26862,17 @@ var ObsidianExtension = class extends import_obsidian58.Plugin {
     }
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", (leaf) => {
-        if ((leaf == null ? void 0 : leaf.view) instanceof import_obsidian58.MarkdownView) {
+        if ((leaf == null ? void 0 : leaf.view) instanceof import_obsidian53.MarkdownView) {
           this.lastActiveMarkdownFile = leaf.view.file;
         }
       })
     );
     await this.loadSettings();
-    this.llm = new import_core33.GoogleGeminiAdapter((_a2 = this.settings.geminiApiKey) != null ? _a2 : "");
-    const geocoder = new GoogleMapsAdapter(
-      (_b = this.settings.googleGeocodingAPIKey) != null ? _b : "",
-      this.app
-    );
-    const geminiImages = new import_core34.GoogleGeminiImagesAdapter((_c = this.settings.geminiApiKey) != null ? _c : "");
+    this.llm = new import_core26.GoogleGeminiAdapter((_a2 = this.settings.geminiApiKey) != null ? _a2 : "");
+    const geminiImages = new import_core27.GoogleGeminiImagesAdapter((_b = this.settings.geminiApiKey) != null ? _b : "");
     const imageSearch = new GoogleImageSearchAdapter(
-      (_d = this.settings.googleCustomSearchApiKey) != null ? _d : "",
-      (_e = this.settings.googleCustomSearchEngineId) != null ? _e : ""
+      (_c = this.settings.googleCustomSearchApiKey) != null ? _c : "",
+      (_d = this.settings.googleCustomSearchEngineId) != null ? _d : ""
     );
     const imageEnricher = new ImageEnricherService(imageSearch);
     this.spotifyAdapter = new SpotifyAdapter(
@@ -27965,7 +26899,7 @@ var ObsidianExtension = class extends import_obsidian58.Plugin {
     }
     this.noteCommands = [
       {
-        id: import_core32.CommandEnum.ApplyTemplate,
+        id: import_core25.CommandEnum.ApplyTemplate,
         name: "Plantilla: Aplica plantilla",
         callback: async (file) => {
           const applyTemplateCommand = new ApplyTemplateCommand(
@@ -27978,7 +26912,7 @@ var ObsidianExtension = class extends import_obsidian58.Plugin {
         }
       },
       {
-        id: import_core32.CommandEnum.ApplyTemplateWithUrl,
+        id: import_core25.CommandEnum.ApplyTemplateWithUrl,
         name: "Plantilla: Aplica plantilla con URL",
         callback: async (file) => {
           const command = new ApplyTemplateWithUrlCommand(
@@ -27990,47 +26924,36 @@ var ObsidianExtension = class extends import_obsidian58.Plugin {
           await command.execute(file);
         }
       },
-      // {
-      //   id: CommandEnum.ApplyStreamBrief,
-      //   name: 'Nota: Añade resumen',
-      //   callback: async (file?: TFile) => {
-      //     const applyStreamBriefCommand = new ApplyStreamBriefCommand(
-      //       this.llm,
-      //       this.app,
-      //     );
-      //     await applyStreamBriefCommand.execute(file);
-      //   },
-      // },
       {
-        id: import_core32.CommandEnum.EnhanceByAi,
+        id: import_core25.CommandEnum.EnhanceByAi,
         name: "IA: Enriquece con IA",
         callback: async (file) => {
           await new EnhanceByAiCommand(this.app, this.settings, this.llm).execute(file);
         }
       },
       {
-        id: import_core32.CommandEnum.EnrichWithPromptUrl,
+        id: import_core25.CommandEnum.EnrichWithPromptUrl,
         name: "IA: Enriquecer con url [EnrichWithPromptUrlCommand]",
         callback: async (file) => {
           await new EnrichWithPromptUrlCommand(this.llm, imageEnricher, this.app, this.settings).execute(file);
         }
       },
       {
-        id: import_core32.CommandEnum.AddImages,
+        id: import_core25.CommandEnum.AddImages,
         name: "Imagenes: A\xF1ade im\xE1genes [AddImagesCommand]",
         callback: async (file) => {
           await new AddImagesCommand(this.app, imageEnricher).execute(file);
         }
       },
       {
-        id: import_core32.CommandEnum.CreateNoteFromImages,
+        id: import_core25.CommandEnum.CreateNoteFromImages,
         name: "Imagenes: Crea nota a partir de im\xE1genes [CreateNoteFromImagesCommand]",
         callback: async (file) => {
           await new CreateNoteFromImagesCommand(this.app, geminiImages).execute(file);
         }
       },
       {
-        id: import_core32.CommandEnum.ApplyTemplateFromImage,
+        id: import_core25.CommandEnum.ApplyTemplateFromImage,
         name: "Imagenes: Aplica plantilla a partir de im\xE1genes [ApplyTemplateFromImageCommand]",
         callback: async (file) => {
           await new ApplyTemplateFromImageCommand(geminiImages, this.app, this.settings).execute(file);
@@ -28044,14 +26967,14 @@ var ObsidianExtension = class extends import_obsidian58.Plugin {
       //   }
       // },
       {
-        id: import_core32.CommandEnum.RelocateNoteByLinkField,
+        id: import_core25.CommandEnum.RelocateNoteByLinkField,
         name: "Reubica: [RelocateNoteByLinkFieldCommand]",
         callback: async (file) => {
           await new RelocateNoteByLinkFieldCommand(this.app).execute(file);
         }
       },
       {
-        id: import_core32.CommandEnum.GenerateMissingNotesFromLinks,
+        id: import_core25.CommandEnum.GenerateMissingNotesFromLinks,
         name: "Links: Create notas para links sin notas [GenerateMissingNotesFromLinksCommand]",
         callback: async (file) => {
           const generateMissingNotesCommand = new GenerateMissingNotesFromLinksCommand(
@@ -28062,49 +26985,28 @@ var ObsidianExtension = class extends import_obsidian58.Plugin {
         }
       },
       {
-        id: import_core32.CommandEnum.CreateReciprocityLinksNotes,
+        id: import_core25.CommandEnum.CreateReciprocityLinksNotes,
         name: "Links: Crea links reciprocos [CreateReciprocityLinksNotesCommand]",
         callback: async (file) => {
           await new CreateReciprocityLinksNotesCommand(this.app).execute(file);
         }
       },
       {
-        id: import_core32.CommandEnum.AnalyzeAndLinkEntities,
+        id: import_core25.CommandEnum.AnalyzeAndLinkEntities,
         name: "Links: Analiza y enlaza entidades [AnalyzeAndLinkEntitiesCommand]",
         callback: async (file) => {
           await new AnalyzeAndLinkEntitiesCommand(this.app, this.llm).execute(file);
         }
       },
       {
-        id: import_core32.CommandEnum.GenerateMissingNotesFromListField,
+        id: import_core25.CommandEnum.GenerateMissingNotesFromListField,
         name: "Links: Genera notas faltantes desde campo lista",
         callback: async (file) => {
           await new GenerateMissingNotesFromListFieldCommand(this.app, this.settings, this.llm, imageEnricher).execute(file);
         }
       },
       {
-        id: import_core32.CommandEnum.EnrichPlace,
-        name: "Lugares: Enriquece Nota",
-        callback: async (file) => {
-          await new EnrichPlaceCommand(geocoder, this.llm, this.app).execute(file);
-        }
-      },
-      {
-        id: import_core32.CommandEnum.RelocatePlaceNote,
-        name: "Lugares: Reubica Nota",
-        callback: async (file) => {
-          await new RelocatePlaceNoteCommand(this.app).execute(file);
-        }
-      },
-      {
-        id: import_core32.CommandEnum.AddPlaceIdFromUrl,
-        name: "Lugares: A\xF1adir Place Id desde URL",
-        callback: async (file) => {
-          await new AddPlaceIdFromUrlCommand(geocoder, this.llm, this.app).execute(file);
-        }
-      },
-      {
-        id: import_core32.CommandEnum.SearchSpotifyTrack,
+        id: import_core25.CommandEnum.SearchSpotifyTrack,
         name: "Spotify: Busca canci\xF3n",
         callback: () => {
           this.spotifyAdapter.updateCredentials(this.settings.spotifyClientId, this.settings.spotifyAccessToken);
@@ -28116,7 +27018,7 @@ var ObsidianExtension = class extends import_obsidian58.Plugin {
         }
       },
       {
-        id: import_core32.CommandEnum.ImportPlaylistTracks,
+        id: import_core25.CommandEnum.ImportPlaylistTracks,
         name: "Spotify: Importa canciones de playlist",
         callback: async () => {
           this.spotifyAdapter.updateCredentials(this.settings.spotifyClientId, this.settings.spotifyAccessToken);
@@ -28129,7 +27031,7 @@ var ObsidianExtension = class extends import_obsidian58.Plugin {
         }
       },
       {
-        id: import_core32.CommandEnum.SearchSpotifyArtist,
+        id: import_core25.CommandEnum.SearchSpotifyArtist,
         name: "Spotify: Busca artista",
         callback: () => {
           this.spotifyAdapter.updateCredentials(this.settings.spotifyClientId, this.settings.spotifyAccessToken);
@@ -28141,21 +27043,21 @@ var ObsidianExtension = class extends import_obsidian58.Plugin {
         }
       },
       {
-        id: import_core32.CommandEnum.InsertLinkToSelectedPhoto,
+        id: import_core25.CommandEnum.InsertLinkToSelectedPhoto,
         name: "Photos: Insertar Link a Foto Seleccionada",
         callback: async (file) => {
           await new InsertLinkToSelectedPhotoCommand(this.app).execute(file);
         }
       },
       {
-        id: import_core32.CommandEnum.OpenLinkedPhoto,
+        id: import_core25.CommandEnum.OpenLinkedPhoto,
         name: "Photos: Abrir Foto Enlazada",
         callback: async (file) => {
           await new OpenLinkedPhotoCommand(this.app).execute(file);
         }
       },
       {
-        id: import_core32.CommandEnum.SyncContacts,
+        id: import_core25.CommandEnum.SyncContacts,
         name: "Contactos: Sincronizar Personas [SyncCurrentContactCommand]",
         callback: async (file) => {
           await new SyncCurrentContactCommand(this.app, this.bridgeService).execute(file);
@@ -28205,7 +27107,7 @@ var ObsidianExtension = class extends import_obsidian58.Plugin {
         }
       },
       {
-        id: import_core32.CommandEnum.TokenizeAndCreateDictionaryNotes,
+        id: import_core25.CommandEnum.TokenizeAndCreateDictionaryNotes,
         name: "Diccionario: Tokenizar y crear notas [TokenizeAndCreateDictionaryNotesCommand]",
         callback: async (file) => {
           await new TokenizeAndCreateDictionaryNotesCommand(this.app, this.settings).execute(file);
@@ -28226,7 +27128,7 @@ var ObsidianExtension = class extends import_obsidian58.Plugin {
         }
       },
       {
-        id: import_core32.CommandEnum.ToggleHideEmptyProperties,
+        id: import_core25.CommandEnum.ToggleHideEmptyProperties,
         name: "Propiedades: Ocultar/Mostrar propiedades vac\xEDas",
         callback: async () => {
           this.settings.hideEmptyProperties = !this.settings.hideEmptyProperties;
@@ -28253,7 +27155,7 @@ var ObsidianExtension = class extends import_obsidian58.Plugin {
     });
     this.registerEvent(
       this.app.vault.on("rename", async (file, oldPath) => {
-        if (file instanceof import_obsidian58.TFile) {
+        if (file instanceof import_obsidian53.TFile) {
           new MetadataService(this.app).handleRename(file, oldPath);
         }
       })
@@ -28261,7 +27163,6 @@ var ObsidianExtension = class extends import_obsidian58.Plugin {
     this.addSettingTab(new SettingsView(this.app, this));
     registerImageGalleryRenderer(this);
     registerSpotifyRenderer(this);
-    registerGoogleMapsRenderer(this);
     const headerDataRepo = new ObsidianHeaderDataRepository(this.app);
     const headerDataService = new HeaderDataService(headerDataRepo);
     this.registerMarkdownPostProcessor(createHeaderProgressRenderer(this.app, headerDataService));
@@ -28284,7 +27185,7 @@ var ObsidianExtension = class extends import_obsidian58.Plugin {
     this.addRibbonIcon("microphone", "Note Operations", () => {
       this.activateNoteOperationsView();
     });
-    if (import_obsidian58.Platform.isDesktop && this.settings.autoStartBridge) {
+    if (import_obsidian53.Platform.isDesktop && this.settings.autoStartBridge) {
       this.bridgeService.startBridge();
     }
   }
