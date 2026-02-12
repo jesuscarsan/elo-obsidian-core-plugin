@@ -1,6 +1,6 @@
 {
   "name": "elo-obsidian-core-plugin",
-  "version": "0.1.98",
+  "version": "0.1.99",
   "description": "Obsidian helper extension.",
   "main": "dist/main.js",
   "scripts": {
@@ -9,8 +9,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "format": "prettier --write .",
-    "test": "jest",
-    "test:cov": "jest --coverage"
+    "test": "vitest",
+    "test:cov": "vitest run --coverage"
   },
   "keywords": [
     "obsidian",
@@ -22,7 +22,6 @@
   "license": "MIT",
   "devDependencies": {
     "@elo/obsidian-plugin": "workspace:*",
-    "@jest/globals": "^30.2.0",
     "@types/jest": "^30.0.0",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.11.19",
@@ -31,17 +30,14 @@
     "esbuild": "^0.20.2",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
-    "jest": "^30.2.0",
     "js-yaml": "^4.1.1",
     "obsidian": "^1.12.0",
     "prettier": "^3.2.5",
-    "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
     "tslib": "^2.6.2",
     "typescript": "^5.4.5"
   },
   "dependencies": {
-    "@danielxceron/youtube-transcript": "^1.2.3",
     "@elo/core": "workspace:*"
   }
 }
